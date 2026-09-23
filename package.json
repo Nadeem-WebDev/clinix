@@ -1,0 +1,22 @@
+{
+  "name": "clinic-crm",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "concurrently -n client,server -c blue,green \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run dev --workspace server",
+    "lint:client": "npm run lint --workspace client",
+    "lint:server": "npm run lint --workspace server",
+    "test:server": "npm run test --workspace server",
+    "test:client": "npm run test --workspace client",
+    "test:e2e": "node e2e/acceptance.mjs",
+    "build": "npm run build:client",
+    "build:client": "npm run build --workspace client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "puppeteer": "^24.43.1"
+  }
+}
