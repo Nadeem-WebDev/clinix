@@ -20,6 +20,7 @@ import {
 import { fromInvoice, toInvoicePayload, paymentFormSchema, PAYMENT_METHODS } from '../schemas/invoice.js'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import BackButton from '../components/BackButton.jsx'
 
 function money(n) {
   return (Number(n) || 0).toFixed(2)
@@ -163,6 +164,7 @@ export default function InvoiceDetail() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <BackButton />
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import ConsultationForm from '../components/ConsultationForm.jsx'
 import PatientContextPanel from '../components/PatientContextPanel.jsx'
 import PatientPicker from '../components/PatientPicker.jsx'
+import BackButton from '../components/BackButton.jsx'
 import { createConsultation } from '../api/consultations.js'
 import { getAppointment } from '../api/appointments.js'
 import { listStaff } from '../api/staff.js'
@@ -59,6 +60,7 @@ export default function ConsultationNew() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
+        <BackButton />
         <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">New Consultation</h1>
 
         {!appointmentId && (

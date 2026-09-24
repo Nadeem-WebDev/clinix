@@ -6,6 +6,7 @@ import { getConsultation } from '../api/consultations.js'
 import { createPrescription } from '../api/prescriptions.js'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import BackButton from '../components/BackButton.jsx'
 
 export default function PrescriptionNew() {
   const navigate = useNavigate()
@@ -47,6 +48,7 @@ export default function PrescriptionNew() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <BackButton />
       <h1 className="mb-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
         New Prescription
       </h1>

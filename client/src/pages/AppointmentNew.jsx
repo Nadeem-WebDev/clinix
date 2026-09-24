@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import Button from '../components/Button.jsx'
+import BackButton from '../components/BackButton.jsx'
 import PatientPicker from '../components/PatientPicker.jsx'
 import { listStaff } from '../api/staff.js'
 import { createAppointment } from '../api/appointments.js'
@@ -53,6 +54,7 @@ export default function AppointmentNew() {
 
   return (
     <div className="mx-auto max-w-lg">
+      <BackButton />
       <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">
         {isWalkIn ? 'Walk-in Patient' : 'Book Appointment'}
       </h1>

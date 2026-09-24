@@ -13,6 +13,7 @@ function clinicFixture(overrides = {}) {
   return {
     _id: 'c1',
     name: 'Sharma Clinic',
+    slug: 'sharma-clinic',
     phone: '02212345678',
     address: '12 MG Road',
     defaultConsultationFee: 500,
@@ -65,5 +66,29 @@ describe('Clinic Settings - WhatsApp notifications', () => {
     expect(screen.queryByLabelText(/access token/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/phone number id/i)).not.toBeInTheDocument()
     expect(screen.getByText(/configured and approved\s+centrally/i)).toBeInTheDocument()
+  })
+})
+
+describe('Clinic Settings - patient queue link', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+  })
+
+  it('shows and copies the clinic public queue URL', async () => {
+    clinicApi.getClinicSettings.mockResolvedValue(clinicFixture())
+    const user = userEvent.setup()
+    renderWithProviders(<Settings />)
+
+    const link = await screen.findByRole('textbox', { name: 'Patient queue link' })
+    expect(link).toHaveValue(`${window.location.origin}/q/sharma-clinic`)
+    expect(screen.getByRole('link', { name: /open patient queue link/i })).toHaveAttribute(
+      'href',
+      `${window.location.origin}/q/sharma-clinic`,
+    )
+
+    await user.click(screen.getByRole('button', { name: /copy link/i }))
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/q/sharma-clinic`)
+    expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
   })
 })

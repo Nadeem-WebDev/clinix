@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, Clock, Save, AlertTriangle, CheckCircle2, MessageCircle } from 'lucide-react'
+import { Building2, Clock, Save, AlertTriangle, CheckCircle2, MessageCircle, Copy, ExternalLink } from 'lucide-react'
 import Button from '../components/Button.jsx'
 import FormField from '../components/FormField.jsx'
 import LoadingState from '../components/LoadingState.jsx'
@@ -27,6 +27,7 @@ export default function Settings() {
   const queryClient = useQueryClient()
   const [serverError, setServerError] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const {
     data: clinic,
@@ -69,6 +70,14 @@ export default function Settings() {
     } catch (err) {
       setServerError(err.response?.data?.message ?? 'Something went wrong. Please try again.')
     }
+  }
+
+  const publicQueueUrl = clinic?.slug ? `${window.location.origin}/q/${clinic.slug}` : ''
+
+  const copyPublicQueueUrl = async () => {
+    await navigator.clipboard.writeText(publicQueueUrl)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 3000)
   }
 
   if (isLoading) return <LoadingState label="Loading clinic settings…" />
@@ -202,6 +211,36 @@ export default function Settings() {
             centrally, not per clinic. If this toggle is on but messages aren&rsquo;t arriving,
             contact support &mdash; it usually means template approval is still pending.
           </p>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">Patient queue link</h2>
+          <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            Share this link with patients so they can check your live queue without signing in.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              aria-label="Patient queue link"
+              readOnly
+              value={publicQueueUrl}
+              className={`${inputClass} min-w-0 flex-1 bg-gray-50 dark:bg-gray-800/60`}
+            />
+            <Button type="button" variant="secondary" onClick={copyPublicQueueUrl} disabled={!publicQueueUrl}>
+              <Copy size={16} aria-hidden="true" />
+              {linkCopied ? 'Copied' : 'Copy link'}
+            </Button>
+            <a
+              href={publicQueueUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open patient queue link"
+              className="inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+              Open
+            </a>
+          </div>
+          {linkCopied && <p role="status" className="mt-2 text-xs text-green-600 dark:text-green-400">Link copied.</p>}
         </section>
 
         <Button type="submit" loading={isSubmitting}>

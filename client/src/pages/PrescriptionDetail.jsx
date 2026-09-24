@@ -13,6 +13,7 @@ import {
 } from '../api/prescriptions.js'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import BackButton from '../components/BackButton.jsx'
 
 export default function PrescriptionDetail() {
   const { id } = useParams()
@@ -55,6 +56,7 @@ export default function PrescriptionDetail() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <BackButton />
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">

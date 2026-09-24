@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientForm from '../components/PatientForm.jsx'
+import BackButton from '../components/BackButton.jsx'
 import { createPatient } from '../api/patients.js'
 import { toPatientPayload } from '../schemas/patient.js'
 
@@ -20,6 +21,7 @@ export default function PatientNew() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <BackButton />
       <h1 className="mb-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
         Register Patient
       </h1>

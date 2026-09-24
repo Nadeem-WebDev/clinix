@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Clock, Lock } from 'lucide-react'
 import { getPatient } from '../api/patients.js'
+import { listAppointments } from '../api/appointments.js'
 import { listConsultations } from '../api/consultations.js'
 import { listPrescriptions } from '../api/prescriptions.js'
 import { listInvoices } from '../api/invoices.js'
@@ -11,6 +12,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import PatientAvatar from '../components/PatientAvatar.jsx'
 import Tabs from '../components/Tabs.jsx'
 import Button from '../components/Button.jsx'
+import BackButton from '../components/BackButton.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import RestrictedTabList from '../components/RestrictedTabList.jsx'
 import DocumentUploadForm from '../components/DocumentUploadForm.jsx'
@@ -137,6 +139,7 @@ export default function PatientProfile() {
 
   return (
     <div>
+      <BackButton />
       <div className="mb-6 flex items-start justify-between rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center gap-4">
           <PatientAvatar name={patient.fullName} size={48} />
@@ -254,7 +257,29 @@ export default function PatientProfile() {
 
         {tab === 'documents' && <DocumentsTab patientId={id} canView={canViewClinical} />}
 
-        {!['overview', 'consultations', 'prescriptions', 'billing', 'documents'].includes(tab) && (
+        {tab === 'appointments' && (
+          <RestrictedTabList
+            active={tab === 'appointments'}
+            canView
+            queryKey={['appointments', { patientId: id, limit: 20 }]}
+            queryFn={async () => (await listAppointments({ patientId: id, limit: 20 })).appointments}
+            emptyTitle="No appointments yet"
+            emptyDescription="Appointments for this patient will appear here."
+            renderItem={(appointment) => (
+              <RecordLink
+                key={appointment._id}
+                to={`/appointments?date=${new Date(appointment.scheduledAt).toISOString().slice(0, 10)}`}
+                title={new Date(appointment.scheduledAt).toLocaleString([], {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+                meta={`Dr. ${appointment.doctorId?.name} · ${appointment.status}`}
+              />
+            )}
+          />
+        )}
+
+        {!['overview', 'consultations', 'prescriptions', 'appointments', 'billing', 'documents'].includes(tab) && (
           <EmptyState
             icon={Clock}
             title="Not available yet"

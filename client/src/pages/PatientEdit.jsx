@@ -6,6 +6,7 @@ import { getPatient, updatePatient } from '../api/patients.js'
 import { fromPatient, toPatientPayload } from '../schemas/patient.js'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import BackButton from '../components/BackButton.jsx'
 
 export default function PatientEdit() {
   const { id } = useParams()
@@ -32,6 +33,7 @@ export default function PatientEdit() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <BackButton />
       <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">
         Edit {patient.fullName}
       </h1>

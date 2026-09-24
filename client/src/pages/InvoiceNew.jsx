@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import InvoiceForm from '../components/InvoiceForm.jsx'
 import PatientPicker from '../components/PatientPicker.jsx'
+import BackButton from '../components/BackButton.jsx'
 import { listStaff } from '../api/staff.js'
 import { getClinicSettings } from '../api/clinic.js'
 import { createInvoice } from '../api/invoices.js'
@@ -45,6 +46,7 @@ export default function InvoiceNew() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      <BackButton />
       <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">Create Bill</h1>
 
       <div className="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800 sm:grid-cols-2">
