@@ -13,6 +13,7 @@ import {
   sendTemplateMessage,
   flushWhatsappSends,
   buildPublicQueueUrl,
+  clinicContact,
 } from '../src/services/whatsapp.service.js'
 import { isStopKeyword } from '../src/services/whatsappWebhook.service.js'
 
@@ -325,6 +326,38 @@ describe('trigger points never fail the primary action', () => {
     await doctorAgent.post(`/api/v1/appointments/${apptId}/call`)
     await flushWhatsappSends()
     expect(await WhatsappMessage.countDocuments({})).toBe(3)
+  })
+
+  it('names the clinic and gives its own phone in every message', async () => {
+    muteLogs()
+    env.whatsapp.enabled = true
+    const { adminAgent, clinic, doctor, patient } = await setupClinic({ whatsappEnabled: true })
+    await Clinic.updateOne({ _id: clinic._id }, { $set: { phone: '+91 98220 12345' } })
+    const spy = mockSendOk()
+    const sentVariables = (call) => call[0].components[0].parameters.map((p) => p.text)
+
+    const apptRes = await adminAgent.post('/api/v1/appointments').send(bookingPayload(doctor, patient))
+    await flushWhatsappSends()
+    await adminAgent.post(`/api/v1/appointments/${apptRes.body.data.appointment._id}/arrive`)
+    await flushWhatsappSends()
+
+    const [booked, queued] = spy.mock.calls.map(sentVariables)
+    // {{1}} patient, {{2}} clinic, {{3}} date, {{4}} time, {{5}} token, {{6}} contact
+    expect(booked).toHaveLength(6)
+    expect(booked[0]).toBe('Priya Sharma')
+    expect(booked[1]).toBe('Sharma Clinic')
+    expect(booked[5]).toBe('+91 98220 12345')
+    // {{1}} patient, {{2}} clinic, {{3}} token, {{4}} queue link, {{5}} contact
+    expect(queued).toHaveLength(5)
+    expect(queued[1]).toBe('Sharma Clinic')
+    expect(queued[3]).toMatch(/\/q\//)
+    expect(queued[4]).toBe('+91 98220 12345')
+  })
+
+  it('never sends a blank contact: falls back to the clinic email, then the front desk', () => {
+    expect(clinicContact({ phone: '+91 98220 12345', email: 'a@b.in' })).toBe('+91 98220 12345')
+    expect(clinicContact({ phone: '', email: 'care@clinic.in' })).toBe('care@clinic.in')
+    expect(clinicContact({})).toBe("the clinic's front desk")
   })
 
   it('sends nothing at all on the same flows when the kill switch is off', async () => {

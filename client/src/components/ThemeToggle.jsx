@@ -24,7 +24,7 @@ export default function ThemeToggle() {
           title={label}
           aria-pressed={theme === value}
           onClick={() => setTheme(value)}
-          className={`rounded-md p-1.5 transition-colors ${
+          className={`rounded-md p-2 transition-colors sm:p-1.5 ${
             theme === value
               ? 'bg-blue-600 text-white'
               : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'

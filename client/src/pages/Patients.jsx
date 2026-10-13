@@ -36,7 +36,7 @@ export default function Patients() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Patients</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -92,7 +92,7 @@ export default function Patients() {
 
       {!isLoading && !isError && data.patients.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Patient</th>
@@ -107,7 +107,7 @@ export default function Patients() {
                   key={patient._id}
                   className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900"
                 >
-                  <td className="px-4 py-2.5">
+                  <td data-cell="title" className="px-4 py-2.5">
                     <Link
                       to={`/patients/${patient._id}`}
                       className="flex items-center gap-3 text-gray-900 dark:text-gray-100"
@@ -116,13 +116,13 @@ export default function Patients() {
                       <span className="font-medium">{patient.fullName}</span>
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="ID" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {patient.patientId}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Age / Gender" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {calculateAge(patient) ?? '—'} · {patient.gender}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Phone" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {patient.phone}
                   </td>
                 </tr>

@@ -14,8 +14,12 @@ export default function Modal({ open, onClose, title, children }) {
 
   if (!open) return null
 
+  // The overlay scrolls and the inner wrapper is at least screen-high, so a
+  // dialog that fits stays centred and a taller one (a form on a phone in
+  // landscape) scrolls instead of being cut off top and bottom.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40">
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
         role="dialog"
         aria-modal="true"
@@ -34,6 +38,7 @@ export default function Modal({ open, onClose, title, children }) {
           </button>
         </div>
         {children}
+      </div>
       </div>
     </div>,
     document.body,

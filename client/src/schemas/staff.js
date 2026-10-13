@@ -11,3 +11,26 @@ export const staffFormSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(STAFF_ROLES, { errorMap: () => ({ message: 'Select a role' }) }),
 })
+
+const profileText = (max) => z.string().trim().max(max, `Keep this under ${max} characters`)
+
+export const doctorProfileFormSchema = z.object({
+  qualifications: profileText(200),
+  specialization: profileText(100),
+  registrationNumber: profileText(50),
+  registrationCouncil: profileText(100),
+})
+
+export function toDoctorProfileForm(profile) {
+  return {
+    qualifications: profile?.qualifications ?? '',
+    specialization: profile?.specialization ?? '',
+    registrationNumber: profile?.registrationNumber ?? '',
+    registrationCouncil: profile?.registrationCouncil ?? '',
+  }
+}
+
+// "MBBS, MD · General Physician" - for lists and pickers. Empty if neither is on file.
+export function doctorCredentials(profile) {
+  return [profile?.qualifications, profile?.specialization].filter(Boolean).join(' · ')
+}

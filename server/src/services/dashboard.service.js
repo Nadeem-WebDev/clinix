@@ -5,15 +5,18 @@ import { Consultation } from '../models/Consultation.js'
 import { Invoice } from '../models/Invoice.js'
 import { Payment } from '../models/Payment.js'
 import { todayDateStr, dayRange, addDaysToDateStr } from '../utils/dateRange.js'
+import { getClinicTimezone } from './clinic.service.js'
+import { revenueEntriesPipeline } from './report.service.js'
 
 function round2(n) {
   return Math.round(n * 100) / 100
 }
 
 async function getAdminDashboard(clinicId) {
-  const today = todayDateStr()
-  const { start, end } = dayRange(today)
-  const weekEnd = dayRange(addDaysToDateStr(today, 7)).end
+  const tz = await getClinicTimezone(clinicId)
+  const today = todayDateStr(tz)
+  const { start, end } = dayRange(today, tz)
+  const weekEnd = dayRange(addDaysToDateStr(today, 7), tz).end
   // Aggregation pipelines don't auto-cast like .find()/.countDocuments()
   // do - clinicId must be cast to ObjectId explicitly or $match silently
   // matches nothing (comparing a BSON ObjectId field to a raw string).
@@ -38,8 +41,9 @@ async function getAdminDashboard(clinicId) {
       status: 'WAITING',
     }),
     Consultation.countDocuments({ clinicId, createdAt: { $gte: start, $lte: end } }),
+    // Same "payments minus refunds" figure as the revenue report, for today.
     Payment.aggregate([
-      { $match: { clinicId: clinicObjectId, paidAt: { $gte: start, $lte: end } } },
+      ...revenueEntriesPipeline(clinicObjectId, start, end),
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]),
     Invoice.aggregate([
@@ -81,8 +85,8 @@ async function getAdminDashboard(clinicId) {
 }
 
 async function getDoctorDashboard(clinicId, doctorId) {
-  const today = todayDateStr()
-  const { start, end } = dayRange(today)
+  const tz = await getClinicTimezone(clinicId)
+  const { start, end } = dayRange(todayDateStr(tz), tz)
 
   const [
     todayAppointmentsCount,
@@ -124,8 +128,8 @@ async function getDoctorDashboard(clinicId, doctorId) {
 }
 
 async function getFrontDeskDashboard(clinicId, role) {
-  const today = todayDateStr()
-  const { start, end } = dayRange(today)
+  const tz = await getClinicTimezone(clinicId)
+  const { start, end } = dayRange(todayDateStr(tz), tz)
 
   const [todayAppointmentsCount, waitingCount, todayAppointments] = await Promise.all([
     Appointment.countDocuments({ clinicId, scheduledAt: { $gte: start, $lte: end } }),

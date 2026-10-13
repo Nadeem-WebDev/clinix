@@ -1,10 +1,11 @@
 import { Router } from 'express'
-import { getPublicQueueHandler } from '../controllers/public.controller.js'
-import { validateParams, validateQuery } from '../middleware/validate.js'
-import { publicQueueRateLimiter } from '../middleware/rateLimiter.js'
+import { getPublicQueueHandler, emailUnsubscribeHandler } from '../controllers/public.controller.js'
+import { validateBody, validateParams, validateQuery } from '../middleware/validate.js'
+import { publicQueueRateLimiter, emailUnsubscribeRateLimiter } from '../middleware/rateLimiter.js'
 import {
   publicQueueParamsSchema,
   publicQueueQuerySchema,
+  emailUnsubscribeSchema,
 } from '../validators/public.validators.js'
 
 // UNAUTHENTICATED ROUTES.
@@ -12,7 +13,8 @@ import {
 // Every other router in this app starts with `router.use(authenticate)`.
 // This one intentionally does not - it backs the no-login waiting-room
 // queue page (/q/:slug), which a patient opens from a WhatsApp link or a
-// QR code on the wall with no account at all.
+// QR code on the wall with no account at all, and the unsubscribe link in
+// notification emails (authorized by its HMAC signature instead).
 //
 // The compensating controls, since there is no session to lean on:
 //   - rate limiting on every route here (publicQueueRateLimiter)
@@ -31,5 +33,7 @@ router.get(
   validateQuery(publicQueueQuerySchema),
   getPublicQueueHandler,
 )
+
+router.post('/email/unsubscribe', emailUnsubscribeRateLimiter, validateBody(emailUnsubscribeSchema), emailUnsubscribeHandler)
 
 export default router

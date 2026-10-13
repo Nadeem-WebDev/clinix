@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
@@ -9,15 +9,13 @@ import BackButton from '../components/BackButton.jsx'
 import PatientPicker from '../components/PatientPicker.jsx'
 import { listStaff } from '../api/staff.js'
 import { createAppointment } from '../api/appointments.js'
-import { appointmentFormSchema, toAppointmentPayload, todayDateStr, nowTimeStr } from '../schemas/appointment.js'
+import { appointmentFormSchema, toAppointmentPayload, todayDateStr } from '../schemas/appointment.js'
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
 
 export default function AppointmentNew() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const isWalkIn = searchParams.get('walkin') === '1'
   const [serverError, setServerError] = useState(null)
   const [selectedPatientLabel, setSelectedPatientLabel] = useState(null)
 
@@ -35,10 +33,9 @@ export default function AppointmentNew() {
       patientId: '',
       doctorId: '',
       date: todayDateStr(),
-      time: isWalkIn ? nowTimeStr() : '',
+      time: '',
       durationMinutes: '',
       notes: '',
-      isWalkIn,
     },
   })
 
@@ -56,7 +53,7 @@ export default function AppointmentNew() {
     <div className="mx-auto max-w-lg">
       <BackButton />
       <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">
-        {isWalkIn ? 'Walk-in Patient' : 'Book Appointment'}
+        Book Appointment
       </h1>
 
       {serverError && (
@@ -110,7 +107,7 @@ export default function AppointmentNew() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="date" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Date
@@ -152,13 +149,8 @@ export default function AppointmentNew() {
           <textarea id="notes" rows={2} className={inputClass} {...register('notes')} />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input type="checkbox" {...register('isWalkIn')} />
-          Walk-in (no prior booking)
-        </label>
-
         <Button type="submit" loading={isSubmitting}>
-          {isWalkIn ? 'Register Walk-in' : 'Book Appointment'}
+          Book Appointment
         </Button>
       </form>
     </div>

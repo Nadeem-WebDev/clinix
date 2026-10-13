@@ -1,6 +1,7 @@
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import clsx from 'clsx'
 import Button from './Button.jsx'
 import FormField from './FormField.jsx'
 import { invoiceFormSchema, emptyInvoiceItem } from '../schemas/invoice.js'
@@ -58,9 +59,9 @@ export default function InvoiceForm({ defaultValues, onSubmit, submitLabel, serv
         <p className="text-sm text-red-600 dark:text-red-400">{errors.items.root.message}</p>
       )}
 
-      <fieldset disabled={readOnly} className="space-y-4">
+      <fieldset disabled={readOnly} className="min-w-0 space-y-4">
         <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-3 py-2 font-medium">Description</th>
@@ -76,10 +77,10 @@ export default function InvoiceForm({ defaultValues, onSubmit, submitLabel, serv
                 const price = Number(watchedItems?.[index]?.unitPrice) || 0
                 return (
                   <tr key={field.id}>
-                    <td className="px-3 py-2">
+                    <td data-label="Description" data-cell="wide" className="px-3 py-2">
                       <input
                         aria-label={`Description (item ${index + 1})`}
-                        className={inputClass}
+                        className={clsx(inputClass, 'min-w-[10rem]')}
                         {...register(`items.${index}.description`)}
                       />
                       {errors.items?.[index]?.description && (
@@ -88,34 +89,34 @@ export default function InvoiceForm({ defaultValues, onSubmit, submitLabel, serv
                         </p>
                       )}
                     </td>
-                    <td className="px-3 py-2">
+                    <td data-label="Qty" className="px-3 py-2">
                       <input
                         type="number"
                         min="1"
                         aria-label={`Quantity (item ${index + 1})`}
-                        className={inputClass}
+                        className={clsx(inputClass, 'min-w-[4rem]')}
                         {...register(`items.${index}.quantity`)}
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td data-label="Unit price" className="px-3 py-2">
                       <input
                         type="number"
                         min="0"
                         step="0.01"
                         aria-label={`Unit price (item ${index + 1})`}
-                        className={inputClass}
+                        className={clsx(inputClass, 'min-w-[6rem]')}
                         {...register(`items.${index}.unitPrice`)}
                       />
                     </td>
-                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{money(qty * price)}</td>
+                    <td data-label="Amount" className="px-3 py-2 text-gray-500 dark:text-gray-400">{money(qty * price)}</td>
                     {!readOnly && (
-                      <td className="px-3 py-2">
+                      <td data-cell="end" className="px-3 py-2">
                         {fields.length > 1 && (
                           <button
                             type="button"
                             onClick={() => remove(index)}
                             aria-label={`Remove item ${index + 1}`}
-                            className="text-red-600 hover:text-red-700 dark:text-red-400"
+                            className="-m-2 rounded-md p-2 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
                           >
                             <Trash2 size={14} aria-hidden="true" />
                           </button>

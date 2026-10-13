@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   createAppointmentHandler,
+  createWalkInHandler,
   listAppointmentsHandler,
   getAppointmentHandler,
   rescheduleAppointmentHandler,
@@ -17,6 +18,7 @@ import { authorize } from '../middleware/authorize.js'
 import { validateBody, validateQuery } from '../middleware/validate.js'
 import {
   createAppointmentSchema,
+  walkInSchema,
   rescheduleAppointmentSchema,
   listAppointmentsQuerySchema,
   queueQuerySchema,
@@ -28,6 +30,8 @@ router.use(authenticate)
 
 // Front-desk lifecycle: booking, rescheduling, arrival, cancel, no-show.
 router.post('/', authorize('owner', 'admin', 'receptionist'), validateBody(createAppointmentSchema), createAppointmentHandler)
+// A patient at the desk without a booking: straight into today's queue.
+router.post('/walk-in', authorize('owner', 'admin', 'receptionist'), validateBody(walkInSchema), createWalkInHandler)
 
 // Static path - must come before "/:id" or Express would treat "queue" as an id.
 router.get('/queue', validateQuery(queueQuerySchema), getQueueHandler)

@@ -1,6 +1,6 @@
 import { Appointment } from '../models/Appointment.js'
 import { Clinic } from '../models/Clinic.js'
-import { dateStrOf, dayRange } from '../utils/dateRange.js'
+import { dateStrOf, dayRange, DEFAULT_TIMEZONE } from '../utils/dateRange.js'
 
 // Everything in this file is reachable WITHOUT authentication (see
 // routes/public.routes.js). Deliberately kept in its own service so that
@@ -31,24 +31,21 @@ export function maskPatientName(fullName) {
 // Mirrors getQueue()'s day window and status filter, but returns a strict
 // allow-list projection instead of populated documents.
 //
-// `date` bucketing is UTC, exactly like getQueue/dashboard/reports - see
-// the README's known limitation. Not made worse here, not fixed here
-// either; fixing it is a clinic-timezone change across all of them.
+// `date` is the clinic's calendar day (Clinic.timezone), same as getQueue.
 export async function getPublicQueue(clinicId, { date } = {}) {
-  const dateStr = date ?? dateStrOf(new Date())
-  const { start, end } = dayRange(dateStr)
+  const clinic = await Clinic.findById(clinicId)
+  const tz = clinic?.timezone || DEFAULT_TIMEZONE
+  const dateStr = date ?? dateStrOf(new Date(), tz)
+  const { start, end } = dayRange(dateStr, tz)
 
-  const [clinic, appointments] = await Promise.all([
-    Clinic.findById(clinicId),
-    Appointment.find({
-      clinicId,
-      scheduledAt: { $gte: start, $lte: end },
-      status: { $in: ['WAITING', 'IN_CONSULTATION'] },
-    })
-      .sort({ skipped: 1, tokenNumber: 1 })
-      .populate('patientId', 'fullName')
-      .populate('doctorId', 'name'),
-  ])
+  const appointments = await Appointment.find({
+    clinicId,
+    scheduledAt: { $gte: start, $lte: end },
+    status: { $in: ['WAITING', 'IN_CONSULTATION'] },
+  })
+    .sort({ skipped: 1, tokenNumber: 1 })
+    .populate('patientId', 'fullName')
+    .populate('doctorId', 'name')
 
   const inConsultation = appointments.filter((a) => a.status === 'IN_CONSULTATION')
   const waiting = appointments.filter((a) => a.status === 'WAITING')
@@ -76,6 +73,9 @@ export async function getPublicQueue(clinicId, { date } = {}) {
 
   return {
     clinicName: clinic?.name ?? '',
+    // Public by nature (a logo is for display), and only ever a Cloudinary
+    // URL set by the owner's upload - never patient or staff data.
+    clinicLogoUrl: clinic?.logoUrl ?? null,
     date: dateStr,
     nowServing,
     waitingCount: waiting.length,

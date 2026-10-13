@@ -18,6 +18,8 @@ const COLORS = {
   // share this one map safely too.
   ACTIVE: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
   INACTIVE: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+  // Clinic suspended by a platform admin.
+  SUSPENDED: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
 }
 
 const LABELS = {
@@ -34,6 +36,7 @@ const LABELS = {
   REFUNDED: 'Refunded',
   ACTIVE: 'Active',
   INACTIVE: 'Inactive',
+  SUSPENDED: 'Suspended',
 }
 
 export default function StatusBadge({ status }) {
@@ -45,6 +48,15 @@ export default function StatusBadge({ status }) {
       )}
     >
       {LABELS[status] ?? status}
+    </span>
+  )
+}
+
+// Marks an appointment that came in without a booking (Add walk-in).
+export function WalkInTag() {
+  return (
+    <span className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 align-middle text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+      Walk-in
     </span>
   )
 }

@@ -221,6 +221,17 @@ export default function InvoiceDetail() {
                 <span className="font-medium text-gray-900 dark:text-gray-100">{money(p.amount)}</span>
               </li>
             ))}
+            {/* Invoices refunded before refunds were recorded have no date; they show the badge only. */}
+            {invoice.paymentStatus === 'REFUNDED' && invoice.refundedAt && (
+              <li className="flex justify-between gap-3 px-3 py-2 text-sm">
+                <span className="text-red-700 dark:text-red-400">
+                  {new Date(invoice.refundedAt).toLocaleDateString()} · Refunded
+                </span>
+                <span className="font-medium text-red-700 dark:text-red-400">
+                  −{money(invoice.refundedAmount)}
+                </span>
+              </li>
+            )}
           </ul>
         </div>
       )}
@@ -240,7 +251,7 @@ export default function InvoiceDetail() {
       <ConfirmDialog
         open={confirmRefund}
         title="Refund this invoice?"
-        description="This marks the invoice as refunded. It won't reverse individual payments - that's a full accounting flow this MVP doesn't implement yet."
+        description={`This gives back the full ${money(invoice.amountPaid)} paid on this invoice, recorded as of today. Revenue in Reports and on the Dashboard drops by that amount today; the days it was paid keep their figures. It can't be undone.`}
         confirmLabel="Refund"
         loading={refunding}
         onConfirm={handleRefund}

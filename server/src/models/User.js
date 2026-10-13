@@ -3,6 +3,26 @@ import bcrypt from 'bcryptjs'
 
 export const ROLES = ['owner', 'admin', 'doctor', 'receptionist', 'nurse']
 
+// Only used for role 'doctor': what a prescription has to say about who
+// wrote it. All free text - degree names and councils vary too much to
+// enumerate. The signature image lives here (not on Cloudinary) so it is
+// never reachable from a public URL; its bytes are select: false so they
+// aren't loaded on every request that reads a user.
+const doctorProfileSchema = new mongoose.Schema(
+  {
+    qualifications: { type: String, trim: true, maxlength: 200 }, // "MBBS, MD (General Medicine)"
+    specialization: { type: String, trim: true, maxlength: 100 },
+    registrationNumber: { type: String, trim: true, maxlength: 50 },
+    registrationCouncil: { type: String, trim: true, maxlength: 100 }, // "Maharashtra Medical Council"
+    signature: {
+      data: { type: Buffer, select: false },
+      contentType: { type: String },
+      updatedAt: { type: Date },
+    },
+  },
+  { _id: false },
+)
+
 const userSchema = new mongoose.Schema(
   {
     clinicId: {
@@ -29,6 +49,11 @@ const userSchema = new mongoose.Schema(
     // important records" rule - a disabled user can no longer log in but
     // their history (consultations, prescriptions, etc.) stays intact.
     active: { type: Boolean, default: true },
+    // Bumped on a password change and carried in every login token (`sv`).
+    // authenticate() rejects a token with an older number, so a change
+    // signs out every other device still holding an old session.
+    sessionVersion: { type: Number, default: 0 },
+    doctorProfile: { type: doctorProfileSchema, default: undefined },
   },
   { timestamps: true },
 )
@@ -46,6 +71,7 @@ userSchema.statics.hashPassword = function hashPassword(plain) {
 userSchema.set('toJSON', {
   transform: (_doc, ret) => {
     delete ret.passwordHash
+    if (ret.doctorProfile?.signature) delete ret.doctorProfile.signature.data
     return ret
   },
 })

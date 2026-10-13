@@ -10,7 +10,8 @@
     "lint": "eslint . --ext js --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.js\"",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "seed": "node src/jobs/seed.js"
+    "seed": "node src/jobs/seed.js",
+    "create-platform-admin": "node scripts/create-platform-admin.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import PrescriptionForm from '../components/PrescriptionForm.jsx'
 import { getConsultation } from '../api/consultations.js'
@@ -12,6 +12,8 @@ export default function PrescriptionNew() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const consultationId = searchParams.get('consultationId')
+  // Arrived here straight from saving the consultation (ConsultationNew).
+  const afterConsultation = searchParams.get('afterConsultation') === '1'
   const [serverError, setServerError] = useState(null)
 
   const { data: consultation, isLoading, isError, refetch } = useQuery({
@@ -49,6 +51,21 @@ export default function PrescriptionNew() {
   return (
     <div className="mx-auto max-w-3xl">
       <BackButton />
+      {afterConsultation && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-950 dark:text-green-300"
+        >
+          <span>Consultation saved. Add the prescription next.</span>
+          <Link
+            to={`/patients/${consultation.patientId?._id ?? consultation.patientId}`}
+            replace
+            className="py-1 font-medium underline hover:no-underline"
+          >
+            Skip, no prescription
+          </Link>
+        </div>
+      )}
       <h1 className="mb-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
         New Prescription
       </h1>

@@ -289,14 +289,13 @@ async function main() {
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
     clickByText(page, 'button[type="submit"]', 'Save Consultation'),
   ])
-  assert('Consultation saved (back on the patient profile)', page.url() === `${CLIENT_URL}/patients/${patientMatch[1]}`, page.url())
+  assert(
+    'Consultation saved (straight on to its prescription)',
+    /\/prescriptions\/new\?consultationId=[a-f0-9]{24}&afterConsultation=1$/.test(page.url()),
+    page.url(),
+  )
 
-  // --- Phase 6: prescription, reached via Consultations tab -> record -> New Prescription ---
-  await clickByText(page, 'button[role="tab"]', 'Consultations')
-  await clickByText(page, 'a', 'Viral fever')
-  await page.waitForFunction(() => location.pathname.startsWith('/consultations/'))
-  await clickByText(page, 'a', 'New Prescription')
-  await page.waitForFunction(() => location.pathname.startsWith('/prescriptions/new'))
+  // --- Phase 6: prescription, the page saving the consultation led to ---
   await typeInto(page, '[id="medicines.0.name"]', 'Paracetamol')
   await typeInto(page, '[id="medicines.0.dosage"]', '500mg')
   await typeInto(page, '[id="medicines.0.frequency"]', '1-0-1')
@@ -319,15 +318,12 @@ async function main() {
   await waitForText(page, 'body', 'Queue is empty')
   step('Appointment completed (IN_CONSULTATION -> COMPLETED)', true)
 
-  // --- Phase 7: billing - create an invoice and record a payment ---
-  await page.goto(`${CLIENT_URL}/billing/new`, { waitUntil: 'networkidle0' })
-  await typeInto(page, 'input[placeholder="Search patient by name, phone, or ID…"]', 'Rahul')
-  await waitForText(page, 'button', 'Rahul Sharma')
-  await clickByText(page, 'button', 'Rahul Sharma')
-  await selectByOptionText(page, '#doctorId', 'Priya Verma')
-  await typeInto(page, 'input[aria-label="Description (item 1)"]', 'Consultation fee')
-  await typeInto(page, 'input[aria-label="Quantity (item 1)"]', '1')
-  await typeInto(page, 'input[aria-label="Unit price (item 1)"]', '500')
+  // --- Phase 7: billing - the completed visit waits under "Ready to bill";
+  // bill it from there, then record a payment ---
+  await page.goto(`${CLIENT_URL}/billing`, { waitUntil: 'networkidle0' })
+  await waitForText(page, 'h2', 'Ready to bill')
+  await clickButtonInRow(page, 'ul li', 'Rahul Sharma', 'Generate Bill')
+  await typeInto(page, '[role="dialog"] input[aria-label="Unit price (item 1)"]', '500')
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
     clickByText(page, 'button[type="submit"]', 'Create Invoice'),

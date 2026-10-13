@@ -3,11 +3,16 @@ import {
   createStaffHandler,
   listStaffHandler,
   setStaffActiveHandler,
+  updateDoctorProfileHandler,
+  uploadDoctorSignatureHandler,
+  removeDoctorSignatureHandler,
+  getDoctorSignatureHandler,
 } from '../controllers/user.controller.js'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
 import { validateBody } from '../middleware/validate.js'
-import { createStaffSchema } from '../validators/user.validators.js'
+import { createStaffSchema, doctorProfileSchema } from '../validators/user.validators.js'
+import { uploadSignatureImage } from '../middleware/upload.js'
 
 const router = Router()
 
@@ -21,5 +26,12 @@ router.use(authenticate)
 router.get('/', listStaffHandler)
 router.post('/', authorize('owner', 'admin'), validateBody(createStaffSchema), createStaffHandler)
 router.patch('/:id/active', authorize('owner', 'admin'), setStaffActiveHandler)
+
+// Doctor profile: the doctor themselves or an owner/admin (checked in
+// user.service.js, since "self" depends on the id in the URL).
+router.patch('/:id/doctor-profile', validateBody(doctorProfileSchema), updateDoctorProfileHandler)
+router.get('/:id/signature', getDoctorSignatureHandler)
+router.put('/:id/signature', uploadSignatureImage('signature'), uploadDoctorSignatureHandler)
+router.delete('/:id/signature', removeDoctorSignatureHandler)
 
 export default router

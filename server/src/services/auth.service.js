@@ -1,4 +1,4 @@
-import { Clinic } from '../models/Clinic.js'
+import { Clinic, CLINIC_SUSPENDED_MESSAGE } from '../models/Clinic.js'
 import { User } from '../models/User.js'
 import { ApiError } from '../utils/ApiError.js'
 import { generateUniqueSlug } from './clinic.service.js'
@@ -32,6 +32,24 @@ export async function registerClinic({ clinicName, adminName, email, password })
   return { clinic, user: owner }
 }
 
+// The caller is already authenticated, but the current password is still
+// required - otherwise anyone at an unlocked front-desk PC could lock the
+// owner out. A wrong one is a 400, not a 401: the session itself is fine.
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  const user = await User.findById(userId).select('+passwordHash')
+  if (!user || !user.active) {
+    throw ApiError.unauthorized('Account is disabled or no longer exists')
+  }
+  if (!(await user.comparePassword(currentPassword))) {
+    throw ApiError.badRequest('Current password is incorrect', 'WRONG_PASSWORD')
+  }
+
+  user.passwordHash = await User.hashPassword(newPassword)
+  user.sessionVersion = (user.sessionVersion ?? 0) + 1
+  await user.save()
+  return user
+}
+
 export async function login({ email, password }) {
   const user = await User.findOne({ email }).select('+passwordHash')
   if (!user || !user.active) {
@@ -41,6 +59,11 @@ export async function login({ email, password }) {
   const matches = await user.comparePassword(password)
   if (!matches) {
     throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS')
+  }
+  // Checked only after the password, so it can't be used to probe which
+  // emails belong to a suspended clinic.
+  if (!(await Clinic.exists({ _id: user.clinicId, active: true }))) {
+    throw ApiError.forbidden(CLINIC_SUSPENDED_MESSAGE, 'CLINIC_SUSPENDED')
   }
 
   return user

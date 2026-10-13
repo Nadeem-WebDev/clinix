@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { UserCog, Plus, ShieldCheck, ShieldOff, AlertTriangle } from 'lucide-react'
+import { UserCog, Plus, ShieldCheck, ShieldOff, AlertTriangle, Stethoscope } from 'lucide-react'
 import { listStaff, createStaff, setStaffActive } from '../api/staff.js'
-import { staffFormSchema, STAFF_ROLES } from '../schemas/staff.js'
+import { staffFormSchema, STAFF_ROLES, doctorCredentials } from '../schemas/staff.js'
+import DoctorProfileModal from '../components/DoctorProfileModal.jsx'
 import Button from '../components/Button.jsx'
 import FormField from '../components/FormField.jsx'
 import Modal from '../components/Modal.jsx'
@@ -29,6 +30,7 @@ export default function Staff() {
   const [modalOpen, setModalOpen] = useState(false)
   const [serverError, setServerError] = useState(null)
   const [toggleTarget, setToggleTarget] = useState(null) // { _id, name, active }
+  const [profileDoctorId, setProfileDoctorId] = useState(null)
 
   const {
     data: staff,
@@ -112,7 +114,7 @@ export default function Staff() {
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Name</th>
@@ -125,38 +127,58 @@ export default function Staff() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {staff.map((member) => (
                 <tr key={member._id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
-                  <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100">{member.name}</td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">{member.email}</td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-cell="title" className="px-4 py-2.5 text-gray-900 dark:text-gray-100">
+                    {member.name}
+                    {member.role === 'doctor' && doctorCredentials(member.doctorProfile) && (
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">
+                        {doctorCredentials(member.doctorProfile)}
+                      </span>
+                    )}
+                  </td>
+                  <td data-label="Email" data-cell="wide" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">{member.email}</td>
+                  <td data-label="Role" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {ROLE_LABELS[member.role] ?? member.role}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="badge" className="px-4 py-2.5">
                     <StatusBadge status={member.active ? 'ACTIVE' : 'INACTIVE'} />
                   </td>
-                  <td className="px-4 py-2.5">
-                    {CAN_TOGGLE_ACTIVE.includes(member.role) && (
-                      <button
-                        type="button"
-                        onClick={() => setToggleTarget(member)}
-                        className={
-                          member.active
-                            ? 'flex items-center gap-1.5 text-red-600 hover:text-red-700 dark:text-red-400'
-                            : 'flex items-center gap-1.5 text-green-600 hover:text-green-700 dark:text-green-400'
-                        }
-                      >
-                        {member.active ? (
-                          <>
-                            <ShieldOff size={14} aria-hidden="true" />
-                            Disable
-                          </>
-                        ) : (
-                          <>
-                            <ShieldCheck size={14} aria-hidden="true" />
-                            Enable
-                          </>
-                        )}
-                      </button>
-                    )}
+                  <td data-cell="actions" className="px-4 py-2.5">
+                    <div className="flex flex-wrap items-center gap-4">
+                      {member.role === 'doctor' && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileDoctorId(member._id)}
+                          aria-label={`Doctor profile for ${member.name}`}
+                          className="flex items-center gap-1.5 py-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                        >
+                          <Stethoscope size={14} aria-hidden="true" />
+                          Profile
+                        </button>
+                      )}
+                      {CAN_TOGGLE_ACTIVE.includes(member.role) && (
+                        <button
+                          type="button"
+                          onClick={() => setToggleTarget(member)}
+                          className={
+                            member.active
+                              ? 'flex items-center gap-1.5 py-1.5 text-red-600 hover:text-red-700 dark:text-red-400'
+                              : 'flex items-center gap-1.5 py-1.5 text-green-600 hover:text-green-700 dark:text-green-400'
+                          }
+                        >
+                          {member.active ? (
+                            <>
+                              <ShieldOff size={14} aria-hidden="true" />
+                              Disable
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck size={14} aria-hidden="true" />
+                              Enable
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -206,6 +228,12 @@ export default function Staff() {
           </div>
         </form>
       </Modal>
+
+      <DoctorProfileModal
+        open={Boolean(profileDoctorId)}
+        doctorId={profileDoctorId}
+        onClose={() => setProfileDoctorId(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(toggleTarget)}

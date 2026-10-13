@@ -41,6 +41,46 @@ export const cloudinaryClient = {
     return cloudinary.uploader.destroy(publicId, { resource_type: resourceType, type: 'authenticated' })
   },
 
+  // Public image upload, for clinic logos only - never patient data. The
+  // incoming transformation scales anything larger than 512px down on
+  // Cloudinary's side, so a huge photo can't become a huge logo download.
+  uploadPublicImage(buffer, { folder, filename }) {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          resource_type: 'image',
+          type: 'upload',
+          filename_override: filename,
+          use_filename: true,
+          unique_filename: true,
+          transformation: [{ width: 512, height: 512, crop: 'limit' }],
+        },
+        (err, result) => {
+          if (err) return reject(err)
+          return resolve(result)
+        },
+      )
+      stream.end(buffer)
+    })
+  },
+
+  destroyPublicImage(publicId) {
+    return cloudinary.uploader.destroy(publicId, { resource_type: 'image', type: 'upload' })
+  },
+
+  // URL of a clinic logo converted to a small PNG on Cloudinary's side, for
+  // embedding in generated PDFs (pdfkit can't read WebP).
+  pdfLogoUrl(publicId) {
+    return cloudinary.url(publicId, {
+      secure: true,
+      resource_type: 'image',
+      type: 'upload',
+      format: 'png',
+      transformation: [{ width: 240, height: 240, crop: 'limit' }],
+    })
+  },
+
   // A time-limited signed URL for an authenticated-type asset - never a
   // permanent public link.
   signedUrl(publicId, resourceType, expiresInSeconds = 300) {

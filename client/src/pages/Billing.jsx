@@ -9,6 +9,7 @@ import Pagination from '../components/Pagination.jsx'
 import LoadingState from '../components/LoadingState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import ReadyToBill from '../components/ReadyToBill.jsx'
 
 const STATUSES = ['PENDING', 'PARTIAL', 'PAID', 'REFUNDED']
 
@@ -37,6 +38,8 @@ export default function Billing() {
           </Button>
         </Link>
       </div>
+
+      <ReadyToBill />
 
       <div className="mb-4">
         <select
@@ -76,7 +79,7 @@ export default function Billing() {
 
       {!isLoading && !isError && data.invoices.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Invoice</th>
@@ -89,7 +92,7 @@ export default function Billing() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {data.invoices.map((inv) => (
                 <tr key={inv._id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
-                  <td className="px-4 py-2.5">
+                  <td data-cell="title" className="px-4 py-2.5">
                     <Link
                       to={`/billing/${inv._id}`}
                       className="text-gray-900 hover:underline dark:text-gray-100"
@@ -97,14 +100,14 @@ export default function Billing() {
                       {inv.invoiceNumber}
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Patient" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {inv.patientId?.fullName}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Date" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {new Date(inv.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100">{money(inv.total)}</td>
-                  <td className="px-4 py-2.5">
+                  <td data-label="Total" className="px-4 py-2.5 text-gray-900 dark:text-gray-100">{money(inv.total)}</td>
+                  <td data-cell="badge" className="px-4 py-2.5">
                     <StatusBadge status={inv.paymentStatus} />
                   </td>
                 </tr>

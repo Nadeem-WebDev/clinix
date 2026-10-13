@@ -1,8 +1,9 @@
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import ThemeToggle from '../components/ThemeToggle.jsx'
+import ClinixLogo from '../components/ClinixLogo.jsx'
 import Button from '../components/Button.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { registerClinicSchema } from '../schemas/auth.js'
@@ -51,7 +52,7 @@ export default function RegisterClinic() {
       </div>
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-6 flex flex-col items-center gap-2">
-          <Building2 size={28} className="text-blue-600" aria-hidden="true" />
+          <ClinixLogo size={40} />
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Set up your clinic
           </h1>

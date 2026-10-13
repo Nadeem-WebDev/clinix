@@ -1,7 +1,8 @@
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Stethoscope, AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
+import ClinixLogo from '../components/ClinixLogo.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import Button from '../components/Button.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -42,9 +43,9 @@ export default function Login() {
       </div>
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-6 flex flex-col items-center gap-2">
-          <Stethoscope size={28} className="text-blue-600" aria-hidden="true" />
+          <ClinixLogo size={40} />
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Clinic CRM
+            Clinix
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Sign in to your clinic

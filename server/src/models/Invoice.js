@@ -37,6 +37,10 @@ const invoiceSchema = new mongoose.Schema(
     total: { type: Number, required: true, min: 0 },
     amountPaid: { type: Number, default: 0, min: 0 },
     paymentStatus: { type: String, enum: PAYMENT_STATUSES, default: 'PENDING' },
+    // Set when the invoice is refunded: when, and how much went back. The
+    // Refund records hold the per-payment detail that revenue reports use.
+    refundedAt: { type: Date },
+    refundedAmount: { type: Number, min: 0 },
     notes: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },

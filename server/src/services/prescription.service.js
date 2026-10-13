@@ -5,6 +5,7 @@ import { User } from '../models/User.js'
 import { Consultation } from '../models/Consultation.js'
 import { ApiError } from '../utils/ApiError.js'
 import * as whatsapp from './whatsapp.service.js'
+import * as email from './email.service.js'
 
 function assertValidId(id, label = 'id') {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -120,13 +121,15 @@ export async function finalizePrescription(clinicId, id) {
   // No PDF link goes out - see DOCUMENT_PICKUP_FALLBACK in
   // whatsapp.service.js for why the message says "collect it from the
   // front desk" instead.
-  whatsapp.notifyDocumentReady({
+  const prescriptionReady = {
     clinicId: prescription.clinicId,
     patientId: prescription.patientId,
     documentType: 'prescription',
     resourceType: 'Prescription',
     resourceId: prescription._id,
-  })
+  }
+  whatsapp.notifyDocumentReady(prescriptionReady)
+  email.notifyDocumentReady(prescriptionReady)
 
   return populatePrescription(prescription)
 }

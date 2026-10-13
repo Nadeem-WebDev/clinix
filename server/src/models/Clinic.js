@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { SLUG_PATTERN } from '../utils/slug.js'
+import { DEFAULT_TIMEZONE, isValidTimeZone } from '../utils/dateRange.js'
 
 export const DAYS_OF_WEEK = [
   'monday',
@@ -68,9 +69,36 @@ const clinicSchema = new mongoose.Schema(
     // sent. Off by default so enabling WhatsApp platform-wide never
     // silently starts messaging every existing clinic's patients.
     whatsappEnabled: { type: Boolean, default: false },
+    // The same per-clinic toggle for email notifications, subordinate to
+    // the platform-wide EMAIL_ENABLED switch. Off by default for the same
+    // reason.
+    emailEnabled: { type: Boolean, default: false },
+    // IANA time zone (e.g. 'Asia/Kolkata') that defines the clinic's day:
+    // "today" on the queue/dashboard, per-day token numbers, report days,
+    // follow-up status, and the times in WhatsApp messages. Existing clinics
+    // get the default on read, so no backfill is needed.
+    timezone: {
+      type: String,
+      default: DEFAULT_TIMEZONE,
+      validate: { validator: isValidTimeZone, message: 'Not a valid time zone' },
+    },
+    // Clinic logo, shown in the app shell and on the public queue page.
+    // A public Cloudinary asset (unlike patient documents, which are
+    // authenticated-only): a logo is meant to be seen, including by
+    // patients who never sign in. Only ever set by the logo upload route -
+    // updateClinicSettingsSchema has no logo fields, so a settings PATCH
+    // cannot point it at an arbitrary URL.
+    logoUrl: { type: String, trim: true },
+    logoPublicId: { type: String, trim: true },
+    // false = suspended by a platform admin: staff can't log in (and existing
+    // sessions stop working), the public queue page 404s, and reminders skip it.
     active: { type: Boolean, default: true },
+    suspendedAt: { type: Date },
+    suspendedReason: { type: String, trim: true },
   },
   { timestamps: true },
 )
 
 export const Clinic = mongoose.model('Clinic', clinicSchema)
+
+export const CLINIC_SUSPENDED_MESSAGE = "This clinic's account is suspended. Please contact Clinix support."

@@ -50,6 +50,18 @@ describe('Public queue page', () => {
     expect(publicQueueApi.getPublicQueue).toHaveBeenCalledWith('sharma-clinic')
   })
 
+  it('shows the clinic logo when one is set, and none otherwise', async () => {
+    publicQueueApi.getPublicQueue.mockResolvedValue({ ...QUEUE, clinicLogoUrl: 'https://cdn.test/logo.png' })
+    const { unmount } = renderPublicQueue()
+    expect(await screen.findByAltText('Sharma Clinic logo')).toHaveAttribute('src', 'https://cdn.test/logo.png')
+    unmount()
+
+    publicQueueApi.getPublicQueue.mockResolvedValue({ ...QUEUE, clinicLogoUrl: null })
+    renderPublicQueue()
+    await screen.findByRole('heading', { name: 'Sharma Clinic' })
+    expect(screen.queryByAltText('Sharma Clinic logo')).not.toBeInTheDocument()
+  })
+
   it('lists upcoming tokens with masked names only', async () => {
     publicQueueApi.getPublicQueue.mockResolvedValue(QUEUE)
     renderPublicQueue()

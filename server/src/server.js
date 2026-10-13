@@ -2,6 +2,7 @@ import { createApp } from './app.js'
 import { connectDB } from './config/db.js'
 import { env } from './config/env.js'
 import { startAppointmentReminderJob } from './jobs/appointmentReminder.job.js'
+import { startKeepAliveJob } from './jobs/keepAlive.job.js'
 
 async function start() {
   try {
@@ -22,6 +23,9 @@ async function start() {
   app.listen(env.port, () => {
     // eslint-disable-next-line no-console
     console.log(`Server listening on port ${env.port} (${env.nodeEnv})`)
+    // Self-guarded: no-ops unless KEEP_ALIVE_ENABLED is true. Started once
+    // the server is listening, since it pings this server.
+    startKeepAliveJob()
   })
 }
 

@@ -4,6 +4,7 @@ import { Patient } from '../models/Patient.js'
 import { WhatsappMessage } from '../models/WhatsappMessage.js'
 import { whatsappClient } from './whatsappClient.js'
 import { toE164 } from '../utils/phone.js'
+import { DEFAULT_TIMEZONE } from '../utils/dateRange.js'
 
 // Outbound WhatsApp, via Meta's Cloud API.
 //
@@ -24,13 +25,6 @@ import { toE164 } from '../utils/phone.js'
 // queue is the natural v2 once send volume justifies the operational cost;
 // until then a failed send is a FAILED row, not a retry storm.
 
-// Only used to render date/time inside message text. Deliberately NOT
-// wired into the day-bucketing used by queue/dashboard/reports, which is
-// UTC everywhere (see README known limitations) - this is a display-only
-// stopgap so patients don't receive appointment times in UTC. When Clinic
-// grows a real timezone field, read it from there and delete this.
-const DISPLAY_TIMEZONE = process.env.WHATSAPP_DISPLAY_TIMEZONE || 'Asia/Kolkata'
-
 // In-flight sends, so tests can wait for fire-and-forget work to settle
 // instead of racing it. Nothing in production reads this.
 const pendingSends = new Set()
@@ -44,21 +38,23 @@ function logFailure(err, context) {
   console.error(`[whatsapp] send failed: ${err.message}`, context)
 }
 
-export function formatMessageDate(date) {
+// Dates and times inside message text are in the clinic's own time zone
+// (Clinic.timezone) - the same zone that defines its day everywhere else.
+export function formatMessageDate(date, tz = DEFAULT_TIMEZONE) {
   return new Intl.DateTimeFormat('en-IN', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
-    timeZone: DISPLAY_TIMEZONE,
+    timeZone: tz,
   }).format(new Date(date))
 }
 
-export function formatMessageTime(date) {
+export function formatMessageTime(date, tz = DEFAULT_TIMEZONE) {
   return new Intl.DateTimeFormat('en-IN', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: DISPLAY_TIMEZONE,
+    timeZone: tz,
   }).format(new Date(date))
 }
 
@@ -249,6 +245,15 @@ export async function flushWhatsappSends() {
 // the patient's opt-out are always evaluated against current state.
 // ---------------------------------------------------------------------------
 
+// How a patient reaches the clinic itself - the last variable of every
+// template. All clinics send from Clinix's one shared WhatsApp number, and
+// replies to that number go unread (only STOP is acted on), so each message
+// names the clinic and gives its own phone. Never blank: Meta rejects an
+// empty template variable, so it falls back to the email, then the desk.
+export function clinicContact(clinic) {
+  return clinic.phone || clinic.email || "the clinic's front desk"
+}
+
 // Accepts either a raw ObjectId or a populated subdocument, since domain
 // services hand back populated appointments.
 function idOf(value) {
@@ -278,7 +283,8 @@ function fireAndForget(task) {
   return promise
 }
 
-// {{1}} patient name, {{2}} clinic name, {{3}} date, {{4}} time, {{5}} token
+// {{1}} patient name, {{2}} clinic name, {{3}} date, {{4}} time, {{5}} token,
+// {{6}} clinic contact
 export function notifyAppointmentBooked(appointment) {
   return fireAndForget(async () => {
     const clinicId = idOf(appointment.clinicId)
@@ -295,9 +301,10 @@ export function notifyAppointmentBooked(appointment) {
       components: bodyComponents([
         patient.fullName,
         clinic.name,
-        formatMessageDate(appointment.scheduledAt),
-        formatMessageTime(appointment.scheduledAt),
+        formatMessageDate(appointment.scheduledAt, clinic.timezone),
+        formatMessageTime(appointment.scheduledAt, clinic.timezone),
         appointment.tokenNumber,
+        clinicContact(clinic),
       ]),
       relatedResourceType: 'Appointment',
       relatedResourceId: appointment._id,
@@ -305,7 +312,8 @@ export function notifyAppointmentBooked(appointment) {
   })
 }
 
-// {{1}} patient name, {{2}} clinic name, {{3}} date, {{4}} time
+// {{1}} patient name, {{2}} clinic name, {{3}} date, {{4}} time,
+// {{5}} clinic contact
 export function notifyAppointmentReminder(appointment) {
   return fireAndForget(async () => {
     const clinicId = idOf(appointment.clinicId)
@@ -322,8 +330,9 @@ export function notifyAppointmentReminder(appointment) {
       components: bodyComponents([
         patient.fullName,
         clinic.name,
-        formatMessageDate(appointment.scheduledAt),
-        formatMessageTime(appointment.scheduledAt),
+        formatMessageDate(appointment.scheduledAt, clinic.timezone),
+        formatMessageTime(appointment.scheduledAt, clinic.timezone),
+        clinicContact(clinic),
       ]),
       relatedResourceType: 'Appointment',
       relatedResourceId: appointment._id,
@@ -331,7 +340,8 @@ export function notifyAppointmentReminder(appointment) {
   })
 }
 
-// {{1}} patient name, {{2}} token number, {{3}} public queue link
+// {{1}} patient name, {{2}} clinic name, {{3}} token number,
+// {{4}} public queue link, {{5}} clinic contact
 //
 // Sent when THIS patient's own position changed in a way they would care
 // about - they were marked arrived, or they were just called in. Not sent
@@ -355,8 +365,10 @@ export function notifyQueueUpdate(appointment) {
       languageCode: patient.preferredLanguage,
       components: bodyComponents([
         patient.fullName,
+        clinic.name,
         appointment.tokenNumber,
         buildPublicQueueUrl(clinic.slug),
+        clinicContact(clinic),
       ]),
       relatedResourceType: 'Appointment',
       relatedResourceId: appointment._id,
@@ -364,7 +376,7 @@ export function notifyQueueUpdate(appointment) {
   })
 }
 
-// What goes in document_ready's {{3}}, where a download link would.
+// What goes in document_ready's {{4}}, where a download link would.
 //
 // DECISION POINT (spec 2.5.3): the prescription and receipt PDF routes
 // (/prescriptions/:id/pdf, /invoices/:id/receipt/pdf) both sit behind
@@ -377,7 +389,8 @@ export function notifyQueueUpdate(appointment) {
 // replace this constant with that URL.
 export const DOCUMENT_PICKUP_FALLBACK = 'Please collect it from the front desk.'
 
-// {{1}} patient name, {{2}} document type, {{3}} link or pickup instruction
+// {{1}} patient name, {{2}} clinic name, {{3}} document type,
+// {{4}} link or pickup instruction, {{5}} clinic contact
 export function notifyDocumentReady({ clinicId, patientId, documentType, resourceType, resourceId }) {
   return fireAndForget(async () => {
     const resolvedClinicId = idOf(clinicId)
@@ -391,7 +404,13 @@ export function notifyDocumentReady({ clinicId, patientId, documentType, resourc
       toPhone: patient.phone,
       templateName: env.whatsapp.templates.documentReady,
       languageCode: patient.preferredLanguage,
-      components: bodyComponents([patient.fullName, documentType, DOCUMENT_PICKUP_FALLBACK]),
+      components: bodyComponents([
+        patient.fullName,
+        clinic.name,
+        documentType,
+        DOCUMENT_PICKUP_FALLBACK,
+        clinicContact(clinic),
+      ]),
       relatedResourceType: resourceType,
       relatedResourceId: resourceId,
     })

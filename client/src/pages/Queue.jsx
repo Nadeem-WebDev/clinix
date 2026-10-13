@@ -1,23 +1,28 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRightCircle, CheckCircle2, SkipForward, Stethoscope } from 'lucide-react'
+import { ArrowRightCircle, CheckCircle2, SkipForward, Stethoscope, UserPlus } from 'lucide-react'
 import { getQueue, callNext, completeAppointment, skipAppointment } from '../api/appointments.js'
 import { listStaff } from '../api/staff.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Button from '../components/Button.jsx'
-import StatusBadge from '../components/StatusBadge.jsx'
+import StatusBadge, { WalkInTag } from '../components/StatusBadge.jsx'
 import PatientAvatar from '../components/PatientAvatar.jsx'
 import LoadingState from '../components/LoadingState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import WalkInModal from '../components/WalkInModal.jsx'
 
 const CAN_DRIVE_QUEUE = ['owner', 'admin', 'doctor']
+// Same roles the server allows on POST /appointments/walk-in.
+const CAN_ADD_WALK_IN = ['owner', 'admin', 'receptionist']
 
 export default function Queue() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [doctorId, setDoctorId] = useState(user?.role === 'doctor' ? user._id : '')
+  const [walkInOpen, setWalkInOpen] = useState(false)
+  const [addedMessage, setAddedMessage] = useState(null)
 
   const { data: staff } = useQuery({ queryKey: ['staff'], queryFn: listStaff })
   const doctors = useMemo(() => (staff ?? []).filter((u) => u.role === 'doctor'), [staff])
@@ -46,7 +51,7 @@ export default function Queue() {
             {data?.date ? `For ${data.date}` : 'Today'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {user?.role !== 'doctor' && (
             <select
               value={doctorId}
@@ -61,6 +66,12 @@ export default function Queue() {
               ))}
             </select>
           )}
+          {CAN_ADD_WALK_IN.includes(user?.role) && (
+            <Button variant="secondary" className="whitespace-nowrap" onClick={() => setWalkInOpen(true)}>
+              <UserPlus size={16} aria-hidden="true" />
+              Add walk-in
+            </Button>
+          )}
           {canDrive && nextWaiting && (
             <Button
               onClick={() => callMutation.mutate(nextWaiting._id)}
@@ -72,6 +83,23 @@ export default function Queue() {
           )}
         </div>
       </div>
+
+      {addedMessage && (
+        <p
+          role="status"
+          className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/40 dark:text-green-300"
+        >
+          <CheckCircle2 size={16} className="shrink-0" aria-hidden="true" />
+          {addedMessage}
+        </p>
+      )}
+
+      <WalkInModal
+        open={walkInOpen}
+        onClose={() => setWalkInOpen(false)}
+        defaultDoctorId={doctorId}
+        onAdded={(appt) => setAddedMessage(`Token ${appt.tokenNumber} – ${appt.patientId?.fullName} added to the queue.`)}
+      />
 
       {isLoading && <LoadingState label="Loading queue…" />}
       {isError && <ErrorState onRetry={refetch} />}
@@ -85,7 +113,7 @@ export default function Queue() {
           {appointments.map((appt) => (
             <li
               key={appt._id}
-              className="flex items-center justify-between gap-3 bg-white px-4 py-3 dark:bg-gray-900"
+              className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 dark:bg-gray-900"
             >
               <div className="flex items-center gap-3">
                 <span className="w-8 text-center text-sm font-semibold text-gray-400 dark:text-gray-500">
@@ -95,6 +123,7 @@ export default function Queue() {
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {appt.patientId?.fullName}
+                    {appt.isWalkIn && <WalkInTag />}
                     {appt.skipped && (
                       <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
                         skipped
@@ -104,7 +133,7 @@ export default function Queue() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Dr. {appt.doctorId?.name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={appt.status} />
                 {canDrive && appt.status === 'WAITING' && (
                   <>

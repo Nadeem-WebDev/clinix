@@ -43,13 +43,16 @@ export default function ConsultationNew() {
       return
     }
     try {
-      await createConsultation({
+      const consultation = await createConsultation({
         patientId,
         doctorId,
         ...(appointmentId ? { appointmentId } : {}),
         ...toConsultationPayload(values),
       })
-      navigate(`/patients/${patientId}`, { replace: true })
+      // Straight on to the prescription - the next step of the visit. The
+      // prescription page offers a "Skip" back to the patient for visits
+      // that don't need one.
+      navigate(`/prescriptions/new?consultationId=${consultation._id}&afterConsultation=1`, { replace: true })
     } catch (err) {
       setServerError(err.response?.data?.message ?? 'Something went wrong. Please try again.')
     }

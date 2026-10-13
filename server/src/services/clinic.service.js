@@ -1,6 +1,8 @@
 import { Clinic } from '../models/Clinic.js'
 import { ApiError } from '../utils/ApiError.js'
 import { slugifyWithFallback, randomSlugSuffix } from '../utils/slug.js'
+import { cloudinaryClient } from './cloudinaryClient.js'
+import { DEFAULT_TIMEZONE } from '../utils/dateRange.js'
 
 // How many suffixed candidates to try before giving up. Each attempt adds
 // 4 random characters from a 36-character alphabet, so two collisions in a
@@ -49,4 +51,56 @@ export async function updateClinicSettings(clinicId, updates) {
   })
   if (!clinic) throw ApiError.notFound('Clinic not found')
   return clinic
+}
+
+// Removing the old image is best-effort and happens only after the DB
+// points at its replacement - a Cloudinary hiccup must never leave the
+// clinic without a logo, only (at worst) with an orphaned old file.
+async function destroyOldLogo(publicId) {
+  if (!publicId) return
+  try {
+    await cloudinaryClient.destroyPublicImage(publicId)
+  } catch (err) {
+    console.error(`[clinic] failed to delete old logo ${publicId}:`, err.message)
+  }
+}
+
+export async function setClinicLogo(clinicId, file) {
+  if (!file) throw ApiError.badRequest('Choose an image to upload', 'FILE_REQUIRED')
+
+  const existing = await Clinic.findById(clinicId).select('logoPublicId')
+  if (!existing) throw ApiError.notFound('Clinic not found')
+
+  const uploaded = await cloudinaryClient.uploadPublicImage(file.buffer, {
+    folder: `clinic-crm/${clinicId}/branding`,
+    filename: file.originalname,
+  })
+
+  const clinic = await Clinic.findByIdAndUpdate(
+    clinicId,
+    { logoUrl: uploaded.secure_url, logoPublicId: uploaded.public_id },
+    { new: true, runValidators: true },
+  )
+  await destroyOldLogo(existing.logoPublicId)
+  return clinic
+}
+
+export async function removeClinicLogo(clinicId) {
+  const existing = await Clinic.findById(clinicId).select('logoPublicId')
+  if (!existing) throw ApiError.notFound('Clinic not found')
+
+  const clinic = await Clinic.findByIdAndUpdate(
+    clinicId,
+    { $unset: { logoUrl: 1, logoPublicId: 1 } },
+    { new: true },
+  )
+  await destroyOldLogo(existing.logoPublicId)
+  return clinic
+}
+
+// The zone that defines this clinic's day (see utils/dateRange.js). Read per
+// call rather than cached, so a change in Settings applies immediately.
+export async function getClinicTimezone(clinicId) {
+  const clinic = await Clinic.findById(clinicId).select('timezone').lean()
+  return clinic?.timezone || DEFAULT_TIMEZONE
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Clock, Lock } from 'lucide-react'
-import { getPatient } from '../api/patients.js'
+import { Pencil, Lock, Stethoscope, FileText, Receipt } from 'lucide-react'
+import { getPatient, getPatientVisits, getPatientFollowUps } from '../api/patients.js'
 import { listAppointments } from '../api/appointments.js'
 import { listConsultations } from '../api/consultations.js'
 import { listPrescriptions } from '../api/prescriptions.js'
@@ -13,13 +13,14 @@ import PatientAvatar from '../components/PatientAvatar.jsx'
 import Tabs from '../components/Tabs.jsx'
 import Button from '../components/Button.jsx'
 import BackButton from '../components/BackButton.jsx'
-import StatusBadge from '../components/StatusBadge.jsx'
+import StatusBadge, { WalkInTag } from '../components/StatusBadge.jsx'
 import RestrictedTabList from '../components/RestrictedTabList.jsx'
 import DocumentUploadForm from '../components/DocumentUploadForm.jsx'
 import DocumentList from '../components/DocumentList.jsx'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import { localDateStr } from '../utils/date.js'
 
 const CAN_EDIT = ['owner', 'admin', 'receptionist', 'nurse']
 // Gated to owner/admin/doctor - the spec's "don't expose medical notes to
@@ -29,11 +30,10 @@ const CAN_VIEW_CLINICAL = ['owner', 'admin', 'doctor']
 // Billing is front-desk/admin territory, not clinical data - the inverse
 // gate from consultations/prescriptions.
 const CAN_VIEW_BILLING = ['owner', 'admin', 'receptionist']
+// Follow-up dates: clinical staff plus the front desk, who book them (the
+// server leaves the doctor's instructions out for receptionists).
+const CAN_VIEW_FOLLOW_UPS = ['owner', 'admin', 'doctor', 'receptionist']
 
-// Consultations, Prescriptions, and Billing have real data this phase.
-// The rest are modules that don't exist yet (documents, follow-ups) and
-// show a clear "not built yet" state rather than a fake/empty-looking
-// finished UI.
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'visits', label: 'Visits' },
@@ -73,6 +73,107 @@ function RecordLink({ to, title, meta }) {
         <span className="text-gray-900 dark:text-gray-100">{title}</span>
         <span className="text-gray-400 dark:text-gray-500">{meta}</span>
       </Link>
+    </li>
+  )
+}
+
+const formatDate = (value) => new Date(value).toLocaleDateString([], { dateStyle: 'medium' })
+const chipClass =
+  'inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+
+// One visit: appointment (if any) + its consultation, prescriptions and
+// bills. Which parts are present depends on the role - the server already
+// left out what this user may not see.
+function VisitItem({ visit }) {
+  const heading = visit.billOnly ? 'Bill only' : visit.status ? null : 'Consultation'
+  return (
+    <li className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium text-gray-900 dark:text-gray-100">
+            {new Date(visit.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            {visit.isWalkIn && <WalkInTag />}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {[visit.doctor && `Dr. ${visit.doctor.name}`, visit.tokenNumber && `Token ${visit.tokenNumber}`]
+              .filter(Boolean)
+              .join(' · ') || '—'}
+          </p>
+        </div>
+        {visit.status ? (
+          <StatusBadge status={visit.status} />
+        ) : (
+          <span className="text-xs text-gray-500 dark:text-gray-400">{heading}</span>
+        )}
+      </div>
+
+      {(visit.consultation || visit.prescriptions.length > 0 || visit.invoices.length > 0) && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {visit.consultation?.id && (
+            <Link to={`/consultations/${visit.consultation.id}`} className={chipClass}>
+              <Stethoscope size={14} aria-hidden="true" />
+              {visit.consultation.diagnosis || 'Consultation'}
+            </Link>
+          )}
+          {visit.consultation?.recorded && (
+            <span className="inline-flex items-center gap-1.5 px-1 py-1 text-xs text-gray-500 dark:text-gray-400">
+              <Stethoscope size={14} aria-hidden="true" />
+              Consultation recorded
+            </span>
+          )}
+          {visit.prescriptions.map((p) => (
+            <Link key={p.id} to={`/prescriptions/${p.id}`} className={chipClass}>
+              <FileText size={14} aria-hidden="true" />
+              Prescription · {p.medicineCount} {p.medicineCount === 1 ? 'medicine' : 'medicines'} ·{' '}
+              {p.finalized ? 'Finalized' : 'Draft'}
+            </Link>
+          ))}
+          {visit.invoices.map((inv) => (
+            <Link key={inv.id} to={`/billing/${inv.id}`} className={chipClass}>
+              <Receipt size={14} aria-hidden="true" />
+              {inv.invoiceNumber} · {inv.total.toFixed(2)}
+              <StatusBadge status={inv.paymentStatus} />
+            </Link>
+          ))}
+        </div>
+      )}
+    </li>
+  )
+}
+
+const FOLLOW_UP_STATUS = {
+  due_today: { label: 'Due today', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+  overdue: { label: 'Overdue', className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+  upcoming: { label: 'Upcoming', className: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' },
+  done: { label: 'Done', className: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300' },
+}
+
+function FollowUpItem({ followUp }) {
+  const status = FOLLOW_UP_STATUS[followUp.status]
+  const details = (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(followUp.followUpDate)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Set by {followUp.doctor ? `Dr. ${followUp.doctor.name}` : 'the doctor'} on {formatDate(followUp.setOn)}
+          </p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span>
+      </div>
+      {followUp.instructions && <p className="mt-2 text-gray-700 dark:text-gray-300">{followUp.instructions}</p>}
+    </>
+  )
+  const boxClass = 'block rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800'
+  return (
+    <li>
+      {followUp.consultationId ? (
+        <Link to={`/consultations/${followUp.consultationId}`} className={`${boxClass} hover:bg-gray-50 dark:hover:bg-gray-900`}>
+          {details}
+        </Link>
+      ) : (
+        <div className={boxClass}>{details}</div>
+      )}
     </li>
   )
 }
@@ -148,8 +249,9 @@ export default function PatientProfile() {
               {patient.fullName}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {calculateAge(patient) ?? '—'} yrs · {patient.gender} · {patient.phone} ·{' '}
-              {patient.patientId}
+              {calculateAge(patient) ?? '—'} yrs · {patient.gender} ·{' '}
+              <span className="whitespace-nowrap">{patient.phone}</span> ·{' '}
+              <span className="whitespace-nowrap">{patient.patientId}</span>
             </p>
           </div>
         </div>
@@ -257,6 +359,30 @@ export default function PatientProfile() {
 
         {tab === 'documents' && <DocumentsTab patientId={id} canView={canViewClinical} />}
 
+        {tab === 'visits' && (
+          <RestrictedTabList
+            active={tab === 'visits'}
+            canView
+            queryKey={['patients', id, 'visits']}
+            queryFn={() => getPatientVisits(id)}
+            emptyTitle="No visits yet"
+            emptyDescription="Each time this patient is seen - with the consultation, prescription and bill - appears here."
+            renderItem={(visit) => <VisitItem key={visit.key} visit={visit} />}
+          />
+        )}
+
+        {tab === 'followups' && (
+          <RestrictedTabList
+            active={tab === 'followups'}
+            canView={CAN_VIEW_FOLLOW_UPS.includes(user?.role)}
+            queryKey={['patients', id, 'follow-ups']}
+            queryFn={() => getPatientFollowUps(id)}
+            emptyTitle="No follow-ups"
+            emptyDescription="Follow-up dates a doctor sets during a consultation appear here."
+            renderItem={(followUp) => <FollowUpItem key={followUp.key} followUp={followUp} />}
+          />
+        )}
+
         {tab === 'appointments' && (
           <RestrictedTabList
             active={tab === 'appointments'}
@@ -268,7 +394,7 @@ export default function PatientProfile() {
             renderItem={(appointment) => (
               <RecordLink
                 key={appointment._id}
-                to={`/appointments?date=${new Date(appointment.scheduledAt).toISOString().slice(0, 10)}`}
+                to={`/appointments?date=${localDateStr(appointment.scheduledAt)}`}
                 title={new Date(appointment.scheduledAt).toLocaleString([], {
                   dateStyle: 'medium',
                   timeStyle: 'short',
@@ -279,13 +405,6 @@ export default function PatientProfile() {
           />
         )}
 
-        {!['overview', 'consultations', 'prescriptions', 'appointments', 'billing', 'documents'].includes(tab) && (
-          <EmptyState
-            icon={Clock}
-            title="Not available yet"
-            description={`${TABS.find((t) => t.key === tab)?.label} will appear here once that module is built.`}
-          />
-        )}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import {
   listPaymentsHandler,
   refundInvoiceHandler,
   getReceiptPdfHandler,
+  listReadyToBillHandler,
 } from '../controllers/invoice.controller.js'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
@@ -28,6 +29,8 @@ router.use(authenticate, authorize('owner', 'admin', 'receptionist'))
 
 router.post('/', validateBody(createInvoiceSchema), createInvoiceHandler)
 router.get('/', validateQuery(listInvoicesQuerySchema), listInvoicesHandler)
+// Before '/:id', or "ready-to-bill" would be read as an invoice id.
+router.get('/ready-to-bill', listReadyToBillHandler)
 router.get('/:id', getInvoiceHandler)
 router.get('/:id/receipt/pdf', getReceiptPdfHandler)
 router.patch('/:id', validateBody(updateInvoiceSchema), updateInvoiceHandler)

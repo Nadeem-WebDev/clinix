@@ -23,3 +23,19 @@ export async function nextSequence(clinicId, name) {
   )
   return counter.seq
 }
+
+// Like nextSequence, but never returns a number at or below `floor` - for a
+// counter that must carry on after values already issued another way. Still
+// one atomic operation: the counter moves to max(current, floor) + 1 in a
+// single update, so concurrent callers can't receive the same number.
+// clinicId/name are deliberately not $set: on upsert Mongo copies them from
+// the (Mongoose-cast) filter, whereas values inside an update pipeline are
+// not cast and a string id would never match again.
+export async function nextSequenceAbove(clinicId, name, floor) {
+  const counter = await Counter.findOneAndUpdate(
+    { clinicId, name },
+    [{ $set: { seq: { $add: [{ $max: [{ $ifNull: ['$seq', 0] }, floor] }, 1] } } }],
+    { new: true, upsert: true },
+  )
+  return counter.seq
+}

@@ -14,6 +14,10 @@ export async function logout() {
   await apiClient.post('/auth/logout')
 }
 
+export async function changePassword({ currentPassword, newPassword }) {
+  await apiClient.post('/auth/change-password', { currentPassword, newPassword })
+}
+
 export async function getCurrentUser() {
   const { data } = await apiClient.get('/auth/me')
   return data.data.user

@@ -15,6 +15,14 @@ export const publicQueueParamsSchema = z.object({
     .regex(SLUG_PATTERN, 'Invalid clinic link'),
 })
 
+// The email unsubscribe link's two query values, posted back by the
+// confirmation page. Shape-checked only; the signature check is in
+// email.service.js.
+export const emailUnsubscribeSchema = z.object({
+  p: z.string().trim().regex(/^[0-9a-fA-F]{24}$/, 'Invalid link'),
+  t: z.string().trim().min(10).max(100),
+})
+
 export const publicQueueQuerySchema = z.object({
   // YYYY-MM-DD, same single-day filter the internal queue takes. Optional -
   // defaults to today, which is what a waiting-room screen always wants.

@@ -1,4 +1,5 @@
 import * as patientService from '../services/patient.service.js'
+import { listPatientVisits, listPatientFollowUps } from '../services/patientHistory.service.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { writeAuditLog } from '../utils/audit.js'
 
@@ -57,6 +58,34 @@ export async function updatePatientHandler(req, res, next) {
     })
 
     return sendSuccess(res, { message: 'Patient updated', data: { patient } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// Same role lines as the patient profile's Consultations/Prescriptions tabs
+// (clinical) and Billing tab (billing).
+const CLINICAL_ROLES = ['owner', 'admin', 'doctor']
+const BILLING_ROLES = ['owner', 'admin', 'receptionist']
+
+export async function listPatientVisitsHandler(req, res, next) {
+  try {
+    const visits = await listPatientVisits(req.clinicId, req.params.id, {
+      clinical: CLINICAL_ROLES.includes(req.user.role),
+      billing: BILLING_ROLES.includes(req.user.role),
+    })
+    return sendSuccess(res, { data: { visits } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function listPatientFollowUpsHandler(req, res, next) {
+  try {
+    const followUps = await listPatientFollowUps(req.clinicId, req.params.id, {
+      clinical: CLINICAL_ROLES.includes(req.user.role),
+    })
+    return sendSuccess(res, { data: { followUps } })
   } catch (err) {
     return next(err)
   }

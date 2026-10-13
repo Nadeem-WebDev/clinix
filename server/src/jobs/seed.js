@@ -14,7 +14,7 @@
 /* eslint-disable no-console -- this whole file's job is CLI progress output */
 import { connectDB, disconnectDB } from '../config/db.js'
 import { env, isProduction } from '../config/env.js'
-import { todayDateStr, addDaysToDateStr } from '../utils/dateRange.js'
+import { todayDateStr, addDaysToDateStr, zonedTimeToUtc, DEFAULT_TIMEZONE } from '../utils/dateRange.js'
 
 import { Clinic, DAYS_OF_WEEK } from '../models/Clinic.js'
 import { User } from '../models/User.js'
@@ -24,6 +24,7 @@ import { Consultation } from '../models/Consultation.js'
 import { Prescription } from '../models/Prescription.js'
 import { Invoice } from '../models/Invoice.js'
 import { Payment } from '../models/Payment.js'
+import { Refund } from '../models/Refund.js'
 import { PatientDocument } from '../models/PatientDocument.js'
 import { AuditLog } from '../models/AuditLog.js'
 import { Counter } from '../models/Counter.js'
@@ -72,17 +73,18 @@ function pad2(n) {
   return String(n).padStart(2, '0')
 }
 
-// Anchored to the app's own UTC day-bucketing (see utils/dateRange.js) so
-// these actually land in "today"/"N days ago" no matter the host machine's
-// local timezone.
-function atUtc(dateStr, hour, minute = 0) {
-  return new Date(`${dateStr}T${pad2(hour)}:${pad2(minute)}:00.000Z`)
+// Times on the demo clinic's own clock (it gets the default time zone), so
+// "9:00" is a 9 am appointment there and lands in the clinic's "today" /
+// "N days ago" no matter the host machine's time zone.
+const SEED_TZ = DEFAULT_TIMEZONE
+function atClinicTime(dateStr, hour, minute = 0) {
+  return zonedTimeToUtc(dateStr, `${pad2(hour)}:${pad2(minute)}`, SEED_TZ)
 }
 function todayAt(hour, minute = 0) {
-  return atUtc(todayDateStr(), hour, minute)
+  return atClinicTime(todayDateStr(SEED_TZ), hour, minute)
 }
 function daysAgoAt(days, hour, minute = 0) {
-  return atUtc(addDaysToDateStr(todayDateStr(), -days), hour, minute)
+  return atClinicTime(addDaysToDateStr(todayDateStr(SEED_TZ), -days), hour, minute)
 }
 
 const FIRST_NAMES = {
@@ -188,6 +190,7 @@ async function clearDatabase() {
     Prescription.deleteMany({}),
     Invoice.deleteMany({}),
     Payment.deleteMany({}),
+    Refund.deleteMany({}),
     PatientDocument.deleteMany({}),
     AuditLog.deleteMany({}),
     Counter.deleteMany({}),

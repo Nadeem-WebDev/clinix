@@ -12,24 +12,18 @@ import {
 import { listStaff } from '../api/staff.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Button from '../components/Button.jsx'
-import StatusBadge from '../components/StatusBadge.jsx'
+import StatusBadge, { WalkInTag } from '../components/StatusBadge.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import Modal from '../components/Modal.jsx'
 import Pagination from '../components/Pagination.jsx'
 import LoadingState from '../components/LoadingState.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
+import WalkInModal from '../components/WalkInModal.jsx'
+import { localDateStr, addLocalDays } from '../utils/date.js'
 
 const CAN_MANAGE = ['owner', 'admin', 'receptionist']
 
-function toDateStr(date) {
-  return date.toISOString().slice(0, 10)
-}
-function addDays(date, days) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
 
 const VIEWS = ['today', 'tomorrow', 'upcoming']
 
@@ -45,9 +39,9 @@ export default function Appointments() {
 
   const dateParams = useMemo(() => {
     const today = new Date()
-    if (view === 'today') return { date: toDateStr(today) }
-    if (view === 'tomorrow') return { date: toDateStr(addDays(today, 1)) }
-    return { from: toDateStr(today) } // upcoming
+    if (view === 'today') return { date: localDateStr(today) }
+    if (view === 'tomorrow') return { date: localDateStr(addLocalDays(today, 1)) }
+    return { from: localDateStr(today) } // upcoming
   }, [view])
 
   const queryParams = { ...dateParams, doctorId: doctorId || undefined, status: status || undefined, page, limit: 20 }
@@ -87,6 +81,7 @@ export default function Appointments() {
   })
 
   const canManage = CAN_MANAGE.includes(user?.role)
+  const [walkInOpen, setWalkInOpen] = useState(false)
 
   return (
     <div>
@@ -94,12 +89,10 @@ export default function Appointments() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Appointments</h1>
         {canManage && (
           <div className="flex gap-2">
-            <Link to="/appointments/new?walkin=1">
-              <Button variant="secondary">
-                <UserPlus size={16} aria-hidden="true" />
-                Walk-in
-              </Button>
-            </Link>
+            <Button variant="secondary" onClick={() => setWalkInOpen(true)}>
+              <UserPlus size={16} aria-hidden="true" />
+              Walk-in
+            </Button>
             <Link to="/appointments/new">
               <Button>
                 <Plus size={16} aria-hidden="true" />
@@ -186,7 +179,7 @@ export default function Appointments() {
 
       {!isLoading && !isError && data.appointments.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Time</th>
@@ -199,26 +192,27 @@ export default function Appointments() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {data.appointments.map((appt) => (
                 <tr key={appt._id}>
-                  <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100">
+                  <td data-label="Time" className="px-4 py-2.5 text-gray-900 dark:text-gray-100">
                     {new Date(appt.scheduledAt).toLocaleString([], {
                       dateStyle: 'medium',
                       timeStyle: 'short',
                     })}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="title" className="px-4 py-2.5">
                     <Link to={`/patients/${appt.patientId?._id}`} className="text-gray-900 hover:underline dark:text-gray-100">
                       {appt.patientId?.fullName}
                     </Link>
                     <span className="ml-1 text-xs text-gray-400">#{appt.tokenNumber}</span>
+                    {appt.isWalkIn && <WalkInTag />}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Doctor" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     Dr. {appt.doctorId?.name}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="badge" className="px-4 py-2.5">
                     <StatusBadge status={appt.status} />
                   </td>
                   {canManage && (
-                    <td className="px-4 py-2.5">
+                    <td data-cell="actions" className="px-4 py-2.5">
                       <div className="flex flex-wrap gap-1.5">
                         {appt.status === 'BOOKED' && (
                           <>
@@ -266,6 +260,8 @@ export default function Appointments() {
         </div>
       )}
 
+      <WalkInModal open={walkInOpen} onClose={() => setWalkInOpen(false)} />
+
       <ConfirmDialog
         open={confirmAction?.type === 'cancel'}
         title="Cancel appointment?"
@@ -302,7 +298,7 @@ function RescheduleModal({ appointment, onClose, onSubmit, loading }) {
   useEffect(() => {
     if (appointment) {
       const d = new Date(appointment.scheduledAt)
-      setDate(d.toISOString().slice(0, 10))
+      setDate(localDateStr(d))
       setTime(d.toTimeString().slice(0, 5))
     }
   }, [appointment])
@@ -310,7 +306,7 @@ function RescheduleModal({ appointment, onClose, onSubmit, loading }) {
   return (
     <Modal open={Boolean(appointment)} onClose={onClose} title="Reschedule Appointment">
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="rescheduleDate" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
             <input

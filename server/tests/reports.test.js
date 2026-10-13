@@ -3,6 +3,8 @@ import { createApp } from '../src/app.js'
 import { connectTestDB, clearTestDB, disconnectTestDB } from './testDb.js'
 import { registerClinicAgent, createStaffAgent } from './helpers.js'
 import { Patient } from '../src/models/Patient.js'
+import { Payment } from '../src/models/Payment.js'
+import { dateStrOf } from '../src/utils/dateRange.js'
 
 const app = createApp()
 
@@ -122,6 +124,77 @@ describe('revenue report', () => {
     ])
     expect(res.body.data.byDoctor).toEqual([
       { doctorId: doctor._id, doctorName: doctor.name, total: 500 },
+    ])
+  })
+})
+
+// The clinic's calendar date (default zone Asia/Kolkata) for an instant.
+const clinicDate = (date) => dateStrOf(date, 'Asia/Kolkata')
+
+describe('refunds in the revenue report', () => {
+  async function paidInvoice(agent, patient, doctor, payments) {
+    const invoice = await agent.post('/api/v1/invoices').send({
+      patientId: patient._id,
+      doctorId: doctor._id,
+      items: [{ description: 'Fee', quantity: 1, unitPrice: payments.reduce((s, p) => s + p.amount, 0) }],
+    })
+    const id = invoice.body.data.invoice._id
+    for (const p of payments) await agent.post(`/api/v1/invoices/${id}/payments`).send(p)
+    return id
+  }
+
+  it('nets a same-day refund out of the total, series, methods and doctors', async () => {
+    const { agent: adminAgent } = await registerClinicAgent(app)
+    const { email: doctorEmail } = await createStaffAgent(app, adminAgent, 'doctor')
+    const doctor = (await adminAgent.get('/api/v1/users')).body.data.staff.find((u) => u.email === doctorEmail)
+    const patient = await makePatient(adminAgent)
+
+    await paidInvoice(adminAgent, patient, doctor, [{ amount: 400, method: 'CARD' }])
+    const refunded = await paidInvoice(adminAgent, patient, doctor, [
+      { amount: 300, method: 'CASH' },
+      { amount: 200, method: 'UPI' },
+    ])
+    await adminAgent.post(`/api/v1/invoices/${refunded}/refund`)
+
+    const res = await adminAgent.get('/api/v1/reports/revenue')
+    expect(res.body.data.total).toBe(400)
+    expect(res.body.data.series.reduce((s, p) => s + p.total, 0)).toBe(400)
+    // CASH and UPI were fully given back, so they drop out rather than show 0.
+    expect(res.body.data.byMethod).toEqual([{ method: 'CARD', total: 400 }])
+    expect(res.body.data.byDoctor).toEqual([{ doctorId: doctor._id, doctorName: doctor.name, total: 400 }])
+  })
+
+  it('subtracts a refund on the day it happens, leaving the day of payment as it was', async () => {
+    const { agent: adminAgent } = await registerClinicAgent(app)
+    const { email: doctorEmail } = await createStaffAgent(app, adminAgent, 'doctor')
+    const doctor = (await adminAgent.get('/api/v1/users')).body.data.staff.find((u) => u.email === doctorEmail)
+    const patient = await makePatient(adminAgent)
+
+    const id = await paidInvoice(adminAgent, patient, doctor, [{ amount: 500, method: 'CASH' }])
+    // Paid three days ago, refunded today. paidAt is moved through the raw
+    // driver, as the API always stamps a payment with the current time.
+    const paidAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+    await Payment.collection.updateOne(
+      { invoiceId: new mongoose.Types.ObjectId(id) },
+      { $set: { paidAt } },
+    )
+    await adminAgent.post(`/api/v1/invoices/${id}/refund`)
+
+    const paidDay = clinicDate(paidAt)
+    const today = clinicDate(new Date())
+
+    const thatDay = await adminAgent.get(`/api/v1/reports/revenue?from=${paidDay}&to=${paidDay}`)
+    expect(thatDay.body.data.total).toBe(500)
+
+    const todayOnly = await adminAgent.get(`/api/v1/reports/revenue?from=${today}&to=${today}`)
+    expect(todayOnly.body.data.total).toBe(-500)
+    expect(todayOnly.body.data.byMethod).toEqual([{ method: 'CASH', total: -500 }])
+
+    const both = await adminAgent.get(`/api/v1/reports/revenue?from=${paidDay}&to=${today}`)
+    expect(both.body.data.total).toBe(0)
+    expect(both.body.data.series).toEqual([
+      { period: paidDay, total: 500 },
+      { period: today, total: -500 },
     ])
   })
 })

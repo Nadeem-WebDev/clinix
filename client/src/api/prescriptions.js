@@ -1,4 +1,4 @@
-import apiClient from './client.js'
+import apiClient, { API_BASE_URL } from './client.js'
 
 export async function listPrescriptions(params = {}) {
   const { data } = await apiClient.get('/prescriptions', { params })
@@ -26,6 +26,5 @@ export async function finalizePrescription(id) {
 }
 
 export function prescriptionPdfUrl(id) {
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
-  return `${base}/prescriptions/${id}/pdf`
+  return `${API_BASE_URL}/prescriptions/${id}/pdf`
 }

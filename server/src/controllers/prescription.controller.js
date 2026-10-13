@@ -1,6 +1,9 @@
 import * as prescriptionService from '../services/prescription.service.js'
 import { streamPrescriptionPdf } from '../services/pdf/prescriptionPdf.js'
+import { loadClinicLogoForPdf } from '../services/pdf/clinicLogo.js'
 import { Clinic } from '../models/Clinic.js'
+import { User } from '../models/User.js'
+import { Consultation } from '../models/Consultation.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { ApiError } from '../utils/ApiError.js'
@@ -77,12 +80,27 @@ export async function getPrescriptionPdfHandler(req, res, next) {
     if (!clinic) throw ApiError.notFound('Clinic not found')
 
     await audit(req, prescription, 'PRESCRIPTION_PDF_VIEWED')
+    const logo = await loadClinicLogoForPdf(clinic)
+    // The full doctor record, signature bytes included - only the PDF
+    // ever reads those.
+    const doctor =
+      (await User.findOne({ _id: prescription.doctorId?._id, clinicId: req.clinicId }).select(
+        '+doctorProfile.signature.data',
+      )) ?? prescription.doctorId
+    // The PDF also prints the complaint, vitals and follow-up advice, which
+    // the prescription's own (API-facing) populate leaves out.
+    const consultation = prescription.consultationId?._id
+      ? await Consultation.findOne({ _id: prescription.consultationId._id, clinicId: req.clinicId }).select(
+          'chiefComplaint vitals diagnosis followUpDate followUpInstructions',
+        )
+      : null
 
     streamPrescriptionPdf(res, {
       clinic,
-      doctor: prescription.doctorId,
+      logo,
+      doctor,
       patient: prescription.patientId,
-      consultation: prescription.consultationId,
+      consultation: consultation ?? prescription.consultationId,
       prescription,
     })
   } catch (err) {

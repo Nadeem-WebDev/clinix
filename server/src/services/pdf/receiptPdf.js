@@ -1,102 +1,183 @@
-import PDFDocument from 'pdfkit'
+import { drawClinicHeader } from './clinicHeader.js'
+import {
+  PAGE,
+  COLORS,
+  newDocument,
+  formatDate,
+  formatTime,
+  formatAmount,
+  formatRupees,
+  rupeesInWords,
+  ensureSpace,
+  sectionLabel,
+  drawInfoPanel,
+  drawTable,
+  drawPageChrome,
+} from './pdfLayout.js'
 
-// Same approach as the prescription PDF: clinic header, then invoice
-// content, omitting the clinic logo since that upload doesn't exist yet.
-export function streamReceiptPdf(res, { clinic, invoice, payments }) {
-  const doc = new PDFDocument({ margin: 50, size: 'A4' })
+// How each payment status reads on paper, and its badge colours.
+const STATUS = {
+  PAID: { label: 'PAID', color: '#15803d', fill: '#dcfce7' },
+  PARTIAL: { label: 'PARTLY PAID', color: '#b45309', fill: '#fef3c7' },
+  PENDING: { label: 'UNPAID', color: '#475569', fill: '#e2e8f0' },
+  REFUNDED: { label: 'REFUNDED', color: '#b91c1c', fill: '#fee2e2' },
+}
+
+const METHODS = { CASH: 'Cash', UPI: 'UPI', CARD: 'Card', ONLINE: 'Online', OTHER: 'Other' }
+
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+
+// Top right of the header: the document's title, number, date and a status
+// badge. Money received makes it a receipt; nothing paid yet, a bill.
+function drawReceiptAside(doc, invoice, tz, { x, y, width }) {
+  const title = invoice.amountPaid > 0 ? 'RECEIPT' : 'BILL'
+  doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.accent)
+  doc.text(title, x, y - 2, { width, align: 'right', characterSpacing: 1.5 })
+
+  const meta = [
+    ['No.', invoice.invoiceNumber],
+    ['Date', formatDate(invoice.createdAt, tz)],
+  ]
+  let rowY = doc.y + 3
+  for (const [label, value] of meta) {
+    doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.muted).text(label, x, rowY, { width: width - 95, align: 'right' })
+    doc.font('Helvetica-Bold').fillColor(COLORS.ink).text(value, x + width - 90, rowY, { width: 90, align: 'right' })
+    rowY += 12
+  }
+
+  const status = STATUS[invoice.paymentStatus] ?? STATUS.PENDING
+  doc.font('Helvetica-Bold').fontSize(7.5)
+  const badgeWidth = doc.widthOfString(status.label, { characterSpacing: 0.8 }) + 16
+  const badgeY = rowY + 3
+  doc.roundedRect(x + width - badgeWidth, badgeY, badgeWidth, 15, 7.5).fill(status.fill)
+  doc.fillColor(status.color).text(status.label, x + width - badgeWidth, badgeY + 4, {
+    width: badgeWidth,
+    align: 'center',
+    characterSpacing: 0.8,
+  })
+  return badgeY + 15
+}
+
+// Right-hand totals with the grand total on an accent band; on the left,
+// the total in words.
+function drawTotals(doc, invoice) {
+  const balance = Math.max(0, invoice.total - invoice.amountPaid)
+  const rows = [
+    ['Subtotal', formatRupees(invoice.subtotal)],
+    invoice.discount ? ['Discount', formatRupees(-invoice.discount)] : null,
+    invoice.tax ? ['Tax', formatRupees(invoice.tax)] : null,
+  ].filter(Boolean)
+  const after = [
+    ['Amount paid', formatRupees(invoice.amountPaid)],
+    ['Balance due', formatRupees(balance), balance > 0 ? '#b91c1c' : COLORS.ink],
+  ]
+  const boxX = PAGE.right - 230
+  const height = rows.length * 17 + 28 + after.length * 17 + 6
+  ensureSpace(doc, height)
+  const top = doc.y
+
+  // Total in words, left of the figures.
+  sectionLabel(doc, 'Amount in words', PAGE.left, top + 2, boxX - PAGE.left - 20)
+  doc.font('Helvetica-Oblique').fontSize(9).fillColor(COLORS.text)
+  doc.text(rupeesInWords(invoice.total), PAGE.left, top + 15, { width: boxX - PAGE.left - 20 })
+
+  let y = top
+  const line = (label, value, { bold = false, color = COLORS.ink } = {}) => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5).fillColor(COLORS.text)
+    doc.text(label, boxX + 10, y + 3, { width: 110 })
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(color)
+    doc.text(value, boxX + 110, y + 3, { width: 110, align: 'right' })
+    y += 17
+  }
+  rows.forEach(([label, value]) => line(label, value))
+
+  y += 2
+  doc.roundedRect(boxX, y, 230, 24, 4).fill(COLORS.accent)
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#ffffff')
+  doc.text('Total', boxX + 10, y + 7, { width: 110 })
+  doc.text(formatRupees(invoice.total), boxX + 110, y + 7, { width: 110, align: 'right' })
+  y += 30
+
+  after.forEach(([label, value, color]) => line(label, value, { bold: label === 'Balance due', color }))
+  doc.x = PAGE.left
+  doc.y = Math.max(y, doc.y) + 14
+}
+
+// Same approach as the prescription PDF: clinic header (with the logo when
+// one is set), then the bill. Amounts use Indian digit grouping; dates are
+// on the clinic's own clock. A refunded bill shows the refund under its
+// payments.
+export function streamReceiptPdf(res, { clinic, logo, invoice, payments }) {
+  const tz = clinic.timezone
+  const doc = newDocument()
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `inline; filename="receipt-${invoice.invoiceNumber}.pdf"`)
   doc.pipe(res)
 
-  doc.fontSize(18).font('Helvetica-Bold').text(clinic.name || 'Clinic')
-  doc.fontSize(9).font('Helvetica').fillColor('#555')
-  const clinicLine = [clinic.address, clinic.phone, clinic.email].filter(Boolean).join('  ·  ')
-  if (clinicLine) doc.text(clinicLine)
-  doc.fillColor('#000')
-  doc.moveDown(0.5)
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke()
-  doc.moveDown(1)
-
-  doc.fontSize(14).font('Helvetica-Bold').text(`Receipt — ${invoice.invoiceNumber}`, { continued: true })
-  doc.font('Helvetica').fontSize(10).text(`   ${new Date(invoice.createdAt).toLocaleDateString()}`, {
-    align: 'right',
-  })
-  doc.moveDown(1)
-
-  doc.fontSize(10).font('Helvetica-Bold').text('Patient')
-  doc.font('Helvetica').text(`${invoice.patientId.fullName}  (${invoice.patientId.patientId})`)
-  if (invoice.doctorId?.name) {
-    doc.font('Helvetica-Bold').text('Doctor', { continued: false })
-    doc.font('Helvetica').text(`Dr. ${invoice.doctorId.name}`)
-  }
-  doc.moveDown(1)
-
-  // --- Items table ---
-  // Every cell in a row is written at one captured Y, rather than chained
-  // .text() calls (each of which advances doc.y by its own line height) -
-  // that's what actually keeps a row's columns aligned.
-  const colX = { desc: 50, qty: 320, price: 380, amount: 470 }
-  const rowY = doc.y
-  doc.font('Helvetica-Bold').fontSize(9)
-  doc.text('Description', colX.desc, rowY, { width: 260 })
-  doc.text('Qty', colX.qty, rowY, { width: 50, align: 'right' })
-  doc.text('Unit Price', colX.price, rowY, { width: 80, align: 'right' })
-  doc.text('Amount', colX.amount, rowY, { width: 75, align: 'right' })
-  doc.moveDown(1)
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke()
-  doc.moveDown(0.3)
-
-  doc.font('Helvetica').fontSize(9)
-  invoice.items.forEach((item) => {
-    const y = doc.y
-    doc.text(item.description, colX.desc, y, { width: 260 })
-    doc.text(String(item.quantity), colX.qty, y, { width: 50, align: 'right' })
-    doc.text(item.unitPrice.toFixed(2), colX.price, y, { width: 80, align: 'right' })
-    doc.text(item.amount.toFixed(2), colX.amount, y, { width: 75, align: 'right' })
-    doc.moveDown(0.5)
+  drawClinicHeader(doc, clinic, logo, {
+    aside: (d, box) => drawReceiptAside(d, invoice, tz, box),
+    asideWidth: 190,
   })
 
-  doc.moveDown(0.5)
-  doc.moveTo(300, doc.y).lineTo(545, doc.y).strokeColor('#ccc').stroke()
-  doc.moveDown(0.3)
+  const patient = invoice.patientId
+  const age = patient.age ?? null
+  drawInfoPanel(doc, [
+    { label: 'Billed to', value: patient.fullName },
+    { label: 'Patient ID', value: patient.patientId },
+    { label: 'Age / Sex', value: [age != null && `${age} yrs`, capitalize(patient.gender)].filter(Boolean).join(' / ') || '-' },
+    { label: 'Doctor', value: invoice.doctorId?.name ? `Dr. ${invoice.doctorId.name}` : '-' },
+  ])
 
-  const totalsRow = (label, value, bold = false) => {
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10)
-    const y = doc.y
-    doc.text(label, 350, y, { width: 100, align: 'right' })
-    doc.text(value.toFixed(2), colX.amount, y, { width: 75, align: 'right' })
-    doc.moveDown(0.4)
+  drawTable(
+    doc,
+    [
+      { header: '#', width: 28, align: 'center' },
+      { header: 'Description', width: 247 },
+      { header: 'Qty', width: 50, align: 'center' },
+      { header: 'Rate (Rs.)', width: 95, align: 'right' },
+      { header: 'Amount (Rs.)', width: 95, align: 'right' },
+    ],
+    invoice.items.map((item, i) => [
+      String(i + 1),
+      item.description,
+      String(item.quantity),
+      formatAmount(item.unitPrice),
+      formatAmount(item.amount),
+    ]),
+  )
+
+  drawTotals(doc, invoice)
+
+  if (payments.length > 0 || invoice.refundedAt) {
+    sectionLabel(doc, 'Payments')
+    doc.y += 4
+    const rows = payments
+      .slice()
+      .sort((a, b) => new Date(a.paidAt) - new Date(b.paidAt))
+      .map((p) => [`${formatDate(p.paidAt, tz)}, ${formatTime(p.paidAt, tz)}`, METHODS[p.method] ?? p.method, formatAmount(p.amount)])
+    if (invoice.refundedAt) {
+      rows.push([
+        { text: `${formatDate(invoice.refundedAt, tz)}, ${formatTime(invoice.refundedAt, tz)}`, color: '#b91c1c' },
+        { text: 'Refunded', color: '#b91c1c' },
+        { text: formatAmount(-(invoice.refundedAmount ?? 0)), color: '#b91c1c' },
+      ])
+    }
+    drawTable(
+      doc,
+      [
+        { header: 'Date', width: 200 },
+        { header: 'Method', width: 200 },
+        { header: 'Amount (Rs.)', width: 115, align: 'right' },
+      ],
+      rows,
+    )
   }
-  totalsRow('Subtotal', invoice.subtotal)
-  if (invoice.discount) totalsRow('Discount', -invoice.discount)
-  if (invoice.tax) totalsRow('Tax', invoice.tax)
-  totalsRow('Total', invoice.total, true)
-  totalsRow('Paid', invoice.amountPaid)
-  totalsRow('Balance', Math.max(0, invoice.total - invoice.amountPaid), true)
 
-  // The totals rows above position text at x=350/470 with narrow widths;
-  // pdfkit's cursor (doc.x) is left there afterward, so anything below
-  // must explicitly reset back to the left margin or it inherits that
-  // leftover narrow width and wraps prematurely.
-  doc.moveDown(1)
-  doc.font('Helvetica-Bold').fontSize(10).text(`Status: ${invoice.paymentStatus}`, 50, doc.y, { width: 495 })
-
-  if (payments.length > 0) {
-    doc.moveDown(1)
-    doc.font('Helvetica-Bold').fontSize(10).text('Payments', 50, doc.y, { width: 495 })
-    doc.font('Helvetica').fontSize(9)
-    payments.forEach((p) => {
-      doc.text(
-        `${new Date(p.paidAt).toLocaleDateString()}  ·  ${p.method}  ·  ${p.amount.toFixed(2)}`,
-        50,
-        doc.y,
-        { width: 495 },
-      )
-    })
+  if (invoice.notes) {
+    sectionLabel(doc, 'Notes')
+    doc.font('Helvetica').fontSize(9.5).fillColor(COLORS.text).text(invoice.notes, PAGE.left, doc.y + 3, { width: PAGE.width })
   }
 
-  doc.fontSize(8).fillColor('#999')
-  doc.text('This is a computer-generated receipt.', 50, 750, { width: 495, align: 'center' })
-
+  drawPageChrome(doc, { note: 'This is a computer-generated receipt and does not require a signature.' })
   doc.end()
 }

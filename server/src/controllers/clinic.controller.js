@@ -29,3 +29,41 @@ export async function updateClinicSettingsHandler(req, res, next) {
     return next(err)
   }
 }
+
+export async function uploadClinicLogoHandler(req, res, next) {
+  try {
+    const clinic = await clinicService.setClinicLogo(req.clinicId, req.file)
+
+    await writeAuditLog({
+      clinicId: req.clinicId,
+      userId: req.user._id,
+      action: 'CLINIC_LOGO_UPDATED',
+      resourceType: 'Clinic',
+      resourceId: clinic._id,
+      ipAddress: req.ip,
+    })
+
+    return sendSuccess(res, { message: 'Clinic logo updated', data: { clinic } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function removeClinicLogoHandler(req, res, next) {
+  try {
+    const clinic = await clinicService.removeClinicLogo(req.clinicId)
+
+    await writeAuditLog({
+      clinicId: req.clinicId,
+      userId: req.user._id,
+      action: 'CLINIC_LOGO_REMOVED',
+      resourceType: 'Clinic',
+      resourceId: clinic._id,
+      ipAddress: req.ip,
+    })
+
+    return sendSuccess(res, { message: 'Clinic logo removed', data: { clinic } })
+  } catch (err) {
+    return next(err)
+  }
+}

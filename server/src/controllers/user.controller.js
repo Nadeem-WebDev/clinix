@@ -57,3 +57,55 @@ export async function setStaffActiveHandler(req, res, next) {
     return next(err)
   }
 }
+
+async function auditDoctor(req, doctor, action) {
+  await writeAuditLog({
+    clinicId: req.clinicId,
+    userId: req.user._id,
+    action,
+    resourceType: 'User',
+    resourceId: doctor._id,
+    ipAddress: req.ip,
+  })
+}
+
+export async function updateDoctorProfileHandler(req, res, next) {
+  try {
+    const doctor = await userService.updateDoctorProfile(req.clinicId, req.user, req.params.id, req.body)
+    await auditDoctor(req, doctor, 'DOCTOR_PROFILE_UPDATED')
+    return sendSuccess(res, { message: 'Doctor profile saved', data: { user: doctor } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function uploadDoctorSignatureHandler(req, res, next) {
+  try {
+    const doctor = await userService.setDoctorSignature(req.clinicId, req.user, req.params.id, req.file)
+    await auditDoctor(req, doctor, 'DOCTOR_SIGNATURE_UPDATED')
+    return sendSuccess(res, { message: 'Signature saved', data: { user: doctor } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function removeDoctorSignatureHandler(req, res, next) {
+  try {
+    const doctor = await userService.removeDoctorSignature(req.clinicId, req.user, req.params.id)
+    await auditDoctor(req, doctor, 'DOCTOR_SIGNATURE_REMOVED')
+    return sendSuccess(res, { message: 'Signature removed', data: { user: doctor } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+export async function getDoctorSignatureHandler(req, res, next) {
+  try {
+    const signature = await userService.getDoctorSignature(req.clinicId, req.user, req.params.id)
+    res.setHeader('Content-Type', signature.contentType)
+    res.setHeader('Cache-Control', 'private, no-store')
+    return res.send(signature.data)
+  } catch (err) {
+    return next(err)
+  }
+}

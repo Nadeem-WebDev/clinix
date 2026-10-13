@@ -1,5 +1,6 @@
 import * as clinicService from '../services/clinic.service.js'
 import * as publicQueueService from '../services/publicQueue.service.js'
+import { unsubscribeFromEmail } from '../services/email.service.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { ApiError } from '../utils/ApiError.js'
 
@@ -26,6 +27,21 @@ export async function getPublicQueueHandler(req, res, next) {
     // No audit log here on purpose: writeAuditLog needs a userId, and a
     // polled public read would flood the audit trail with anonymous rows.
     return sendSuccess(res, { data: queue })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// The unsubscribe link in every notification email. No session: the
+// patient has no account. What authorizes it is the HMAC signature in the
+// link, checked in unsubscribeFromEmail; an invalid or forged link gets the
+// same generic 404 as an unknown patient, and the response carries only the
+// clinic's name.
+export async function emailUnsubscribeHandler(req, res, next) {
+  try {
+    const result = await unsubscribeFromEmail(req.body.p, req.body.t)
+    if (!result) throw ApiError.notFound('This unsubscribe link is not valid')
+    return sendSuccess(res, { message: 'Unsubscribed', data: { clinicName: result.clinicName } })
   } catch (err) {
     return next(err)
   }

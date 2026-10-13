@@ -62,7 +62,7 @@ export default function Consultations() {
 
       {!isLoading && !isError && data.consultations.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Date</th>
@@ -74,16 +74,16 @@ export default function Consultations() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {data.consultations.map((c) => (
                 <tr key={c._id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Date" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {new Date(c.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="title" className="px-4 py-2.5">
                     <Link to={`/consultations/${c._id}`} className="text-gray-900 hover:underline dark:text-gray-100">
                       {c.patientId?.fullName}
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">Dr. {c.doctorId?.name}</td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Doctor" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">Dr. {c.doctorId?.name}</td>
+                  <td data-label="Diagnosis" data-cell="wide" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {c.diagnosis || '—'}
                   </td>
                 </tr>

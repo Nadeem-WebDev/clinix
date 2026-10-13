@@ -1,8 +1,14 @@
 import { Router } from 'express'
-import { getClinicSettingsHandler, updateClinicSettingsHandler } from '../controllers/clinic.controller.js'
+import {
+  getClinicSettingsHandler,
+  updateClinicSettingsHandler,
+  uploadClinicLogoHandler,
+  removeClinicLogoHandler,
+} from '../controllers/clinic.controller.js'
 import { authenticate } from '../middleware/authenticate.js'
 import { authorize } from '../middleware/authorize.js'
 import { validateBody } from '../middleware/validate.js'
+import { uploadSingleImage } from '../middleware/upload.js'
 import { updateClinicSettingsSchema } from '../validators/clinic.validators.js'
 
 const router = Router()
@@ -17,5 +23,10 @@ router.use(authenticate)
 // user is always created with role 'owner').
 router.get('/settings', getClinicSettingsHandler)
 router.patch('/settings', authorize('owner'), validateBody(updateClinicSettingsSchema), updateClinicSettingsHandler)
+
+// Logo is part of Clinic Settings, so it carries the same Owner-only rule.
+// multipart/form-data with the image in a `logo` field.
+router.post('/settings/logo', authorize('owner'), uploadSingleImage('logo'), uploadClinicLogoHandler)
+router.delete('/settings/logo', authorize('owner'), removeClinicLogoHandler)
 
 export default router

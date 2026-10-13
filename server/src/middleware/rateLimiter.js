@@ -55,3 +55,19 @@ export const whatsappWebhookRateLimiter = rateLimit({
     code: 'RATE_LIMITED',
   },
 })
+
+// The email unsubscribe endpoint - unauthenticated, so capped low enough
+// that guessing signatures is pointless, and well above what a patient
+// clicking their own link could ever hit.
+export const emailUnsubscribeRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.nodeEnv === 'test',
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later.',
+    code: 'RATE_LIMITED',
+  },
+})

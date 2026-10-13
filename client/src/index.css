@@ -11,3 +11,150 @@ body,
 body {
   @apply bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100;
 }
+
+/* On iPhone Safari 100vh is the height with the browser toolbar hidden,
+   so an h-screen layout runs underneath the toolbar and its bottom is cut
+   off. 100dvh is the height actually visible right now. Every h-screen /
+   min-h-screen in this app is a full-page layout, so they all switch;
+   browsers without dvh (iOS before 15.4) keep the 100vh fallback. This sits
+   after @tailwind utilities so it wins over the utility of the same name. */
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* iOS Safari zooms the whole page in when a form field whose text is under
+   16px gets focus, and stays zoomed. The design uses 14px (text-sm) fields,
+   so on iOS only they go to 16px. -webkit-touch-callout is supported by
+   iOS/iPadOS Safari (which every iOS browser is built on) and nothing
+   else, so Android and desktop keep the 14px design. !important because
+   the size otherwise comes from a Tailwind class, which outranks a
+   plain element selector. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* An empty date/time field collapses to a sliver on iOS (no placeholder
+     text to give it height), and iOS centres the chosen value. */
+  input[type='date'],
+  input[type='time'] {
+    min-height: 2.5rem;
+  }
+
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+
+/* Data tables on phones and tablets: below lg (1024px, where the sidebar
+   leaves too little room for a wide table) each row becomes a card instead
+   of a line that scrolls sideways. Add class "stack-table" to the <table>
+   and give each <td> its column name in data-label; cells sit two to a row
+   (three from sm) with the name above the value. data-cell="title" leads
+   the card (full width, no label), "wide" takes a full row (long text,
+   emails), "badge" (a status) sits in the top-right corner, "actions"
+   goes full width at the bottom, and "end" sits in the last column,
+   right-aligned. From lg up it is an ordinary table. */
+@media not all and (min-width: 1024px) {
+  .stack-table,
+  .stack-table tbody {
+    display: block;
+  }
+
+  .stack-table thead {
+    display: none;
+  }
+
+  .stack-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .stack-table tr {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .stack-table td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .stack-table td[data-label]::before {
+    content: attr(data-label);
+    @apply mb-0.5 block text-[0.6875rem] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400;
+  }
+
+  .stack-table td[data-cell='title'] {
+    grid-column: 1 / -1;
+    order: -1;
+    font-weight: 500;
+  }
+
+  /* A status badge sits in the card's top-right corner, beside the title. */
+  .stack-table tr {
+    position: relative;
+  }
+
+  .stack-table td[data-cell='badge'] {
+    position: absolute;
+    top: 0.875rem;
+    right: 1rem;
+  }
+
+  .stack-table tr:has(td[data-cell='badge']) td[data-cell='title'] {
+    padding-right: 7rem;
+  }
+
+  .stack-table td[data-cell='wide'],
+  .stack-table td[data-cell='actions'] {
+    grid-column: 1 / -1;
+  }
+
+  .stack-table td[data-cell='actions'] {
+    order: 1;
+  }
+
+  /* The title link covers the whole card, so a tap anywhere on it opens
+     the record; the card's own buttons stay on top. */
+  .stack-table td[data-cell='title'] a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .stack-table td[data-cell='actions'] {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* A row with nothing to do (a finished appointment) shows no empty strip. */
+  .stack-table td[data-cell='actions']:not(:has(button, a)) {
+    display: none;
+  }
+
+  .stack-table td[data-cell='end'] {
+    grid-column: -2 / -1;
+    justify-self: end;
+    align-self: end;
+  }
+
+  .stack-table td[data-cell='end']:empty {
+    display: none;
+  }
+}

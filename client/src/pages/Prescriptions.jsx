@@ -57,7 +57,7 @@ export default function Prescriptions() {
 
       {!isLoading && !isError && data.prescriptions.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-left text-sm">
+          <table className="stack-table w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Date</th>
@@ -70,19 +70,19 @@ export default function Prescriptions() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {data.prescriptions.map((p) => (
                 <tr key={p._id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Date" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {new Date(p.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="title" className="px-4 py-2.5">
                     <Link to={`/prescriptions/${p._id}`} className="text-gray-900 hover:underline dark:text-gray-100">
                       {p.patientId?.fullName}
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">Dr. {p.doctorId?.name}</td>
-                  <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
+                  <td data-label="Doctor" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">Dr. {p.doctorId?.name}</td>
+                  <td data-label="Medicines" data-cell="wide" className="px-4 py-2.5 text-gray-500 dark:text-gray-400">
                     {p.medicines.map((m) => m.name).join(', ')}
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td data-cell="badge" className="px-4 py-2.5">
                     <span
                       className={
                         p.finalized

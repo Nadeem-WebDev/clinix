@@ -27,6 +27,20 @@ export async function createAppointmentHandler(req, res, next) {
   }
 }
 
+export async function createWalkInHandler(req, res, next) {
+  try {
+    const appointment = await appointmentService.createWalkIn(req.clinicId, req.body, req.user._id)
+    await audit(req, appointment, 'APPOINTMENT_WALK_IN')
+    return sendSuccess(res, {
+      status: 201,
+      message: `Walk-in added to the queue (token ${appointment.tokenNumber})`,
+      data: { appointment },
+    })
+  } catch (err) {
+    return next(err)
+  }
+}
+
 export async function listAppointmentsHandler(req, res, next) {
   try {
     const result = await appointmentService.listAppointments(req.clinicId, req.validatedQuery)

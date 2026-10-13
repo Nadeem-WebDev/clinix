@@ -1,8 +1,14 @@
-import apiClient from './client.js'
+import apiClient, { API_BASE_URL } from './client.js'
 
 export async function listInvoices(params = {}) {
   const { data } = await apiClient.get('/invoices', { params })
   return data.data // { invoices, pagination }
+}
+
+// Today's completed visits nobody has billed yet (listReadyToBill on the server).
+export async function listReadyToBill() {
+  const { data } = await apiClient.get('/invoices/ready-to-bill')
+  return data.data.visits
 }
 
 export async function getInvoice(id) {
@@ -36,6 +42,5 @@ export async function refundInvoice(id) {
 }
 
 export function receiptPdfUrl(id) {
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
-  return `${base}/invoices/${id}/receipt/pdf`
+  return `${API_BASE_URL}/invoices/${id}/receipt/pdf`
 }

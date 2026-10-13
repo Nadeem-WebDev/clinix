@@ -1,6 +1,7 @@
 import { createApp } from '../src/app.js'
 import { connectTestDB, clearTestDB, disconnectTestDB } from './testDb.js'
 import { registerClinicAgent, createStaffAgent } from './helpers.js'
+import { Refund } from '../src/models/Refund.js'
 
 const app = createApp()
 
@@ -187,6 +188,114 @@ describe('refunds', () => {
 
     const secondRefund = await adminAgent.post(`/api/v1/invoices/${id}/refund`)
     expect(secondRefund.status).toBe(400)
+  })
+
+  it('records the money going back: one refund per payment, dated now', async () => {
+    const { adminAgent, patient } = await setupClinic()
+    const created = await adminAgent.post('/api/v1/invoices').send(basePayload(patient))
+    const id = created.body.data.invoice._id
+    await adminAgent.post(`/api/v1/invoices/${id}/payments`).send({ amount: 300, method: 'CASH' })
+    await adminAgent.post(`/api/v1/invoices/${id}/payments`).send({ amount: 400, method: 'UPI' })
+
+    const before = Date.now()
+    const res = await adminAgent.post(`/api/v1/invoices/${id}/refund`)
+    expect(res.status).toBe(200)
+    expect(res.body.data.invoice.refundedAmount).toBe(700)
+    expect(new Date(res.body.data.invoice.refundedAt).getTime()).toBeGreaterThanOrEqual(before - 1000)
+    // The payments themselves are untouched - the day they came in keeps its figures.
+    expect(res.body.data.invoice.amountPaid).toBe(700)
+
+    const refunds = await Refund.find({ invoiceId: id }).sort({ amount: 1 })
+    expect(refunds.map((r) => [r.amount, r.method])).toEqual([
+      [300, 'CASH'],
+      [400, 'UPI'],
+    ])
+  })
+
+  it('refunds only once when two refunds arrive together', async () => {
+    const { adminAgent, patient } = await setupClinic()
+    const created = await adminAgent.post('/api/v1/invoices').send(basePayload(patient))
+    const id = created.body.data.invoice._id
+    await adminAgent.post(`/api/v1/invoices/${id}/payments`).send({ amount: 700, method: 'CASH' })
+
+    const results = await Promise.all([
+      adminAgent.post(`/api/v1/invoices/${id}/refund`),
+      adminAgent.post(`/api/v1/invoices/${id}/refund`),
+    ])
+    expect(results.map((r) => r.status).sort()).toEqual([200, 400])
+    expect(await Refund.countDocuments({ invoiceId: id })).toBe(1)
+  })
+})
+
+describe('ready to bill', () => {
+  // A visit taken all the way through the queue: walk-in -> called -> completed.
+  async function completedVisit(adminAgent, patientId, doctorId, { consult = false } = {}) {
+    const walkIn = await adminAgent.post('/api/v1/appointments/walk-in').send({ patientId, doctorId })
+    const appointmentId = walkIn.body.data.appointment._id
+    await adminAgent.post(`/api/v1/appointments/${appointmentId}/call`)
+    let consultationId = null
+    if (consult) {
+      const c = await adminAgent
+        .post('/api/v1/consultations')
+        .send({ patientId, doctorId, appointmentId, diagnosis: 'Viral fever' })
+      consultationId = c.body.data.consultation._id
+    }
+    await adminAgent.post(`/api/v1/appointments/${appointmentId}/complete`)
+    return { appointmentId, consultationId }
+  }
+
+  async function newPatient(adminAgent, fullName, phone) {
+    const res = await adminAgent.post('/api/v1/patients').send({ fullName, age: 30, gender: 'female', phone })
+    return res.body.data.patient
+  }
+
+  it('lists today\'s completed, unbilled visits until a bill covers them', async () => {
+    const { adminAgent, patient } = await setupClinic()
+    const doctor = (await adminAgent.get('/api/v1/users')).body.data.staff.find((u) => u.role === 'doctor')
+    const linked = await completedVisit(adminAgent, patient._id, doctor._id, { consult: true })
+
+    const other = await newPatient(adminAgent, 'Meera Iyer', '9000000001')
+    await completedVisit(adminAgent, other._id, doctor._id)
+
+    // Still waiting for the doctor - not ready to bill.
+    const waiting = await newPatient(adminAgent, 'Arjun Rao', '9000000002')
+    await adminAgent.post('/api/v1/appointments/walk-in').send({ patientId: waiting._id, doctorId: doctor._id })
+
+    const res = await adminAgent.get('/api/v1/invoices/ready-to-bill')
+    expect(res.status).toBe(200)
+    const visits = res.body.data.visits
+    expect(visits.map((v) => v.patient.fullName).sort()).toEqual(['Meera Iyer', 'Rahul Sharma'])
+    const rahul = visits.find((v) => v.patient.fullName === 'Rahul Sharma')
+    expect(rahul).toMatchObject({
+      appointmentId: linked.appointmentId,
+      consultationId: linked.consultationId,
+      doctor: { _id: doctor._id, name: doctor.name },
+      isWalkIn: true,
+    })
+    expect(rahul.tokenNumber).toEqual(expect.any(Number))
+
+    // Billed from the list (linked to the appointment) ...
+    await adminAgent.post('/api/v1/invoices').send({ ...basePayload(patient), appointmentId: linked.appointmentId })
+    // ... and from the Billing page with no link - same patient, same day.
+    await adminAgent.post('/api/v1/invoices').send(basePayload(other))
+
+    const after = await adminAgent.get('/api/v1/invoices/ready-to-bill')
+    expect(after.body.data.visits).toEqual([])
+  })
+
+  it('is for the billing roles only, and never shows another clinic\'s visits', async () => {
+    const { adminAgent, doctorAgent, nurseAgent, patient } = await setupClinic()
+    const doctor = (await adminAgent.get('/api/v1/users')).body.data.staff.find((u) => u.role === 'doctor')
+    await completedVisit(adminAgent, patient._id, doctor._id)
+
+    expect((await doctorAgent.get('/api/v1/invoices/ready-to-bill')).status).toBe(403)
+    expect((await nurseAgent.get('/api/v1/invoices/ready-to-bill')).status).toBe(403)
+
+    const { agent: receptionistAgent } = await createStaffAgent(app, adminAgent, 'receptionist')
+    expect((await receptionistAgent.get('/api/v1/invoices/ready-to-bill')).body.data.visits).toHaveLength(1)
+
+    const otherClinic = await setupClinic({ email: 'admin-b@ready.test' })
+    expect((await otherClinic.adminAgent.get('/api/v1/invoices/ready-to-bill')).body.data.visits).toEqual([])
   })
 })
 

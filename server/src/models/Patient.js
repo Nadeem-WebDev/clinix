@@ -45,6 +45,11 @@ const patientSchema = new mongoose.Schema(
     // it automatically.
     whatsappOptIn: { type: Boolean, default: true },
     whatsappOptOutAt: { type: Date },
+    // Email consent, on the same terms: on by default for an address the
+    // patient gave the clinic, and switched off for good by the
+    // unsubscribe link in every email (email.service.js).
+    emailOptIn: { type: Boolean, default: true },
+    emailOptOutAt: { type: Date },
     // Drives the language variant of the approved Meta template used for
     // this patient. Only languages actually approved in Meta Business
     // Manager will deliver - see README.

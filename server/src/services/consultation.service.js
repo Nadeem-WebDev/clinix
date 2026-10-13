@@ -4,7 +4,8 @@ import { Patient } from '../models/Patient.js'
 import { User } from '../models/User.js'
 import { Appointment } from '../models/Appointment.js'
 import { ApiError } from '../utils/ApiError.js'
-import { todayDateStr, dayRange, addDaysToDateStr } from '../utils/dateRange.js'
+import { todayDateStr, addDaysToDateStr, calendarDateOf } from '../utils/dateRange.js'
+import { getClinicTimezone } from './clinic.service.js'
 
 function assertValidId(id, label = 'id') {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -122,16 +123,26 @@ export async function updateConsultation(clinicId, id, data) {
 // own dashboard passes their own id to scope this to just their patients;
 // omitted, it's clinic-wide (owner/admin).
 export async function listFollowUpsDue(clinicId, { doctorId } = {}, days = 7) {
-  const today = todayDateStr()
-  const { start } = dayRange(today)
-  const { end } = dayRange(addDaysToDateStr(today, days))
-  const filter = {
+  const tz = await getClinicTimezone(clinicId)
+  const today = todayDateStr(tz)
+  const last = addDaysToDateStr(today, days)
+  // A follow-up date is a calendar date (see calendarDateOf), so fetch a
+  // day either side and keep those whose date falls in [today, today+days]
+  // in the clinic's calendar.
+  const candidates = await Consultation.find({
     clinicId,
-    followUpDate: { $gte: start, $lte: end },
+    followUpDate: {
+      $gte: new Date(`${addDaysToDateStr(today, -1)}T00:00:00.000Z`),
+      $lte: new Date(`${addDaysToDateStr(last, 1)}T23:59:59.999Z`),
+    },
     ...(doctorId ? { doctorId } : {}),
-  }
-  return Consultation.find(filter)
+  })
     .sort({ followUpDate: 1 })
-    .limit(10)
     .populate('patientId', 'fullName patientId phone')
+  return candidates
+    .filter((c) => {
+      const day = calendarDateOf(c.followUpDate, tz)
+      return day >= today && day <= last
+    })
+    .slice(0, 10)
 }

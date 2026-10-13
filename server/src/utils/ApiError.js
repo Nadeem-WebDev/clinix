@@ -26,7 +26,7 @@ export class ApiError extends Error {
     return new ApiError(404, message, code)
   }
 
-  static conflict(message, code = 'CONFLICT') {
-    return new ApiError(409, message, code)
+  static conflict(message, code = 'CONFLICT', details) {
+    return new ApiError(409, message, code, details)
   }
 }

@@ -19,3 +19,15 @@ export async function updatePatient(id, payload) {
   const { data } = await apiClient.patch(`/patients/${id}`, payload)
   return data.data.patient
 }
+
+// Profile history tabs - assembled server-side and already trimmed to what
+// the signed-in role may see (see patientHistory.service.js).
+export async function getPatientVisits(id) {
+  const { data } = await apiClient.get(`/patients/${id}/visits`)
+  return data.data.visits
+}
+
+export async function getPatientFollowUps(id) {
+  const { data } = await apiClient.get(`/patients/${id}/follow-ups`)
+  return data.data.followUps
+}

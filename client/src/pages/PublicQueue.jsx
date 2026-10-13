@@ -71,12 +71,19 @@ export default function PublicQueue() {
     )
   }
 
-  const { clinicName, nowServing, waitingCount, upcoming, estimatedWaitMinutes, isEstimate } = data
+  const { clinicName, clinicLogoUrl, nowServing, waitingCount, upcoming, estimatedWaitMinutes, isEstimate } = data
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-950 sm:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 text-center">
+          {clinicLogoUrl && (
+            <img
+              src={clinicLogoUrl}
+              alt={`${clinicName} logo`}
+              className="mx-auto mb-4 h-16 w-auto max-w-[12rem] rounded-lg bg-white object-contain p-1 sm:h-20"
+            />
+          )}
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
             {clinicName}
           </h1>

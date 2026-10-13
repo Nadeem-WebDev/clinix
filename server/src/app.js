@@ -6,9 +6,14 @@ import cookieParser from 'cookie-parser'
 import { env, isProduction } from './config/env.js'
 import apiRouter from './routes/index.js'
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js'
+import { inlineScriptHashes, mountClient, readClientIndex } from './middleware/serveClient.js'
 
-export function createApp() {
+// options exist for tests; production reads SERVE_CLIENT / client/dist from env.
+export function createApp({ serveClient = env.serveClient, clientDistDir = env.clientDistDir } = {}) {
   const app = express()
+  // Read up front: a missing build should fail at boot with a clear message,
+  // not on the first page request.
+  const client = serveClient ? readClientIndex(clientDistDir) : null
 
   // Every deployment target in the README (Render/Railway/AWS) sits behind
   // a reverse proxy/load balancer. Without this, req.ip resolves to the
@@ -23,7 +28,25 @@ export function createApp() {
     app.set('trust proxy', 1)
   }
 
-  app.use(helmet())
+  // Helmet's defaults, plus what the React app needs when served from here:
+  // clinic logos and patient images come from Cloudinary, and index.html's
+  // inline theme script is allowed by hash rather than 'unsafe-inline'.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
+          scriptSrc: ["'self'", ...(client ? inlineScriptHashes(client.html) : [])],
+          // Helmet adds upgrade-insecure-requests by default. Production is
+          // always behind HTTPS, but over plain http (a local production
+          // build, or a phone on the LAN at http://192.168.x.x) Safari obeys
+          // it, requests the scripts over https, fails, and shows a blank
+          // page - so it is only sent in production.
+          upgradeInsecureRequests: isProduction ? [] : null,
+        },
+      },
+    }),
+  )
   app.use(
     cors({
       origin: env.corsOrigins,
@@ -47,9 +70,13 @@ export function createApp() {
   app.use(cookieParser())
   // Request logging without sensitive data: 'combined'/'dev' formats log
   // method/path/status/timing, never headers or body.
-  app.use(morgan(isProduction ? 'combined' : 'dev'))
+  // Keep-alive pings arrive every few minutes all day; logging each one
+  // would bury the real requests.
+  app.use(morgan(isProduction ? 'combined' : 'dev', { skip: (req) => req.originalUrl === '/api/v1/keep-alive' }))
 
   app.use('/api/v1', apiRouter)
+
+  if (client) mountClient(app, { distDir: clientDistDir, indexPath: client.indexPath })
 
   app.use(notFoundHandler)
   app.use(errorHandler)

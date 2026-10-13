@@ -41,6 +41,14 @@ const Staff = lazy(() => import('./pages/Staff.jsx'))
 // but for the opposite reason: almost nobody who loads the app shell will
 // ever open it, and almost nobody who opens it will load the app shell.
 const PublicQueue = lazy(() => import('./pages/PublicQueue.jsx'))
+const EmailUnsubscribe = lazy(() => import('./pages/EmailUnsubscribe.jsx'))
+
+// Clinix's own admin panel (/platform) - separate login and session from
+// every clinic, and lazy: no clinic user ever downloads it.
+const PlatformLogin = lazy(() => import('./pages/platform/PlatformLogin.jsx'))
+const PlatformLayout = lazy(() => import('./pages/platform/PlatformLayout.jsx'))
+const PlatformClinics = lazy(() => import('./pages/platform/PlatformClinics.jsx'))
+const PlatformClinicDetail = lazy(() => import('./pages/platform/PlatformClinicDetail.jsx'))
 
 export default function App() {
   return (
@@ -53,6 +61,7 @@ export default function App() {
         {/* Outside ProtectedRoute and AppLayout on purpose: no session, no
             sidebar, and no redirect to /login when there's no cookie. */}
         <Route path="/q/:slug" element={<PublicQueue />} />
+        <Route path="/email/unsubscribe" element={<EmailUnsubscribe />} />
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
@@ -103,6 +112,12 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
             </Route>
           </Route>
+        </Route>
+
+        <Route path="/platform/login" element={<PlatformLogin />} />
+        <Route path="/platform" element={<PlatformLayout />}>
+          <Route index element={<PlatformClinics />} />
+          <Route path="clinics/:id" element={<PlatformClinicDetail />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

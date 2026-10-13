@@ -12,7 +12,12 @@ export async function registerClinicHandler(req, res, next) {
   try {
     const { clinic, user } = await authService.registerClinic(req.body)
 
-    const token = signAuthToken({ userId: user._id, clinicId: clinic._id, role: user.role })
+    const token = signAuthToken({
+      userId: user._id,
+      clinicId: clinic._id,
+      role: user.role,
+      sessionVersion: user.sessionVersion,
+    })
     res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions())
 
     await writeAuditLog({
@@ -38,7 +43,12 @@ export async function loginHandler(req, res, next) {
   try {
     const user = await authService.login(req.body)
 
-    const token = signAuthToken({ userId: user._id, clinicId: user.clinicId, role: user.role })
+    const token = signAuthToken({
+      userId: user._id,
+      clinicId: user.clinicId,
+      role: user.role,
+      sessionVersion: user.sessionVersion,
+    })
     res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions())
 
     await writeAuditLog({
@@ -70,6 +80,35 @@ export async function logoutHandler(req, res, next) {
     }
     res.clearCookie(AUTH_COOKIE_NAME, clearAuthCookieOptions())
     return sendSuccess(res, { message: 'Logged out' })
+  } catch (err) {
+    return next(err)
+  }
+}
+
+// Old sessions stop working once the password changes (see
+// authenticate), so this one gets a fresh token and stays signed in.
+export async function changePasswordHandler(req, res, next) {
+  try {
+    const user = await authService.changePassword(req.user._id, req.body)
+
+    const token = signAuthToken({
+      userId: user._id,
+      clinicId: user.clinicId,
+      role: user.role,
+      sessionVersion: user.sessionVersion,
+    })
+    res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions())
+
+    await writeAuditLog({
+      clinicId: user.clinicId,
+      userId: user._id,
+      action: 'PASSWORD_CHANGED',
+      resourceType: 'User',
+      resourceId: user._id,
+      ipAddress: req.ip,
+    })
+
+    return sendSuccess(res, { message: 'Password changed' })
   } catch (err) {
     return next(err)
   }

@@ -1,13 +1,17 @@
 import mongoose from 'mongoose'
 import { Invoice } from '../models/Invoice.js'
 import { Payment } from '../models/Payment.js'
+import { Refund } from '../models/Refund.js'
 import { Patient } from '../models/Patient.js'
 import { User } from '../models/User.js'
 import { Appointment } from '../models/Appointment.js'
 import { Consultation } from '../models/Consultation.js'
 import { nextSequence } from '../models/Counter.js'
 import { ApiError } from '../utils/ApiError.js'
+import { todayDateStr, dayRange } from '../utils/dateRange.js'
+import { getClinicTimezone } from './clinic.service.js'
 import * as whatsapp from './whatsapp.service.js'
+import * as email from './email.service.js'
 
 function assertValidId(id, label = 'id') {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -126,6 +130,64 @@ export async function listInvoices(clinicId, { patientId, status, from, to, page
   }
 }
 
+// The front desk's billing to-do list: today's visits the doctor has marked
+// completed that nobody has billed yet. A visit counts as billed when a bill
+// is linked to its appointment, or - since bills made from the Billing page
+// usually aren't linked - when the patient has an unlinked bill from the same
+// day (the same matching the patient's Visits tab uses). Refunded bills
+// still count as billed. "Today" is the clinic's own calendar day.
+export async function listReadyToBill(clinicId) {
+  const tz = await getClinicTimezone(clinicId)
+  const { start, end } = dayRange(todayDateStr(tz), tz)
+
+  const appointments = await Appointment.find({
+    clinicId,
+    status: 'COMPLETED',
+    scheduledAt: { $gte: start, $lte: end },
+  })
+    .sort({ completedAt: 1 })
+    .populate('patientId', 'fullName patientId')
+    .populate('doctorId', 'name')
+  if (appointments.length === 0) return []
+
+  const appointmentIds = appointments.map((a) => a._id)
+  const [invoices, consultations] = await Promise.all([
+    Invoice.find(
+      {
+        clinicId,
+        $or: [
+          { appointmentId: { $in: appointmentIds } },
+          {
+            appointmentId: null,
+            patientId: { $in: appointments.map((a) => a.patientId?._id) },
+            createdAt: { $gte: start, $lte: end },
+          },
+        ],
+      },
+      'appointmentId patientId',
+    ),
+    Consultation.find({ clinicId, appointmentId: { $in: appointmentIds } }, 'appointmentId'),
+  ])
+
+  const billedAppointments = new Set(invoices.filter((i) => i.appointmentId).map((i) => String(i.appointmentId)))
+  const patientsBilledToday = new Set(invoices.filter((i) => !i.appointmentId).map((i) => String(i.patientId)))
+  const consultationByAppointment = new Map(consultations.map((c) => [String(c.appointmentId), c._id]))
+
+  return appointments
+    .filter(
+      (a) => !billedAppointments.has(String(a._id)) && !patientsBilledToday.has(String(a.patientId?._id)),
+    )
+    .map((a) => ({
+      appointmentId: a._id,
+      tokenNumber: a.tokenNumber,
+      isWalkIn: a.isWalkIn,
+      completedAt: a.completedAt,
+      patient: a.patientId,
+      doctor: a.doctorId,
+      consultationId: consultationByAppointment.get(String(a._id)) ?? null,
+    }))
+}
+
 async function findOwned(clinicId, id) {
   assertValidId(id, 'invoice id')
   const invoice = await Invoice.findOne({ _id: id, clinicId })
@@ -202,13 +264,15 @@ export async function recordPayment(clinicId, id, { amount, method, notes }, rec
   // notifications. Fire-and-forget - recording a payment must never fail
   // because of a messaging problem.
   if (invoice.paymentStatus === 'PAID') {
-    whatsapp.notifyDocumentReady({
+    const receiptReady = {
       clinicId: invoice.clinicId,
       patientId: invoice.patientId,
       documentType: 'receipt',
       resourceType: 'Invoice',
       resourceId: invoice._id,
-    })
+    }
+    whatsapp.notifyDocumentReady(receiptReady)
+    email.notifyDocumentReady(receiptReady)
   }
 
   return { invoice: await populateInvoice(invoice), payment }
@@ -219,15 +283,44 @@ export async function listPayments(clinicId, invoiceId) {
   return Payment.find({ clinicId, invoiceId }).sort({ paidAt: -1 })
 }
 
-export async function refundInvoice(clinicId, id) {
-  const invoice = await findOwned(clinicId, id)
-  if (invoice.paymentStatus === 'REFUNDED') {
+// Refunds everything paid on the invoice, today. Each payment gets a
+// matching Refund record dated now, which is what revenue reports subtract
+// - the payments themselves stay as they were, so the day the money came
+// in keeps its figures. Partial refunds/credit notes are still out of
+// scope for the MVP.
+export async function refundInvoice(clinicId, id, refundedByUserId) {
+  const existing = await findOwned(clinicId, id)
+  if (existing.paymentStatus === 'REFUNDED') {
     throw ApiError.badRequest('This invoice is already refunded', 'INVOICE_REFUNDED')
   }
-  // A flag flip, not a full reversing-ledger entry - proper credit
-  // notes/partial refunds are exactly the accounting-ERP complexity the
-  // spec says to skip for the MVP.
-  invoice.paymentStatus = 'REFUNDED'
+
+  // Flipped in one conditional update, so two refund clicks at the same
+  // moment can't both get through and record the money going back twice.
+  const refundedAt = new Date()
+  const invoice = await Invoice.findOneAndUpdate(
+    { _id: existing._id, clinicId, paymentStatus: { $ne: 'REFUNDED' } },
+    { $set: { paymentStatus: 'REFUNDED', refundedAt } },
+    { new: true },
+  )
+  if (!invoice) {
+    throw ApiError.badRequest('This invoice is already refunded', 'INVOICE_REFUNDED')
+  }
+
+  const payments = await Payment.find({ clinicId, invoiceId: invoice._id })
+  if (payments.length > 0) {
+    await Refund.insertMany(
+      payments.map((p) => ({
+        clinicId,
+        invoiceId: invoice._id,
+        paymentId: p._id,
+        amount: p.amount,
+        method: p.method,
+        refundedAt,
+        recordedBy: refundedByUserId,
+      })),
+    )
+  }
+  invoice.refundedAmount = round2(payments.reduce((sum, p) => sum + p.amount, 0))
   await invoice.save()
   return populateInvoice(invoice)
 }

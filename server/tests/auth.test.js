@@ -2,6 +2,7 @@ import request from 'supertest'
 import { createApp } from '../src/app.js'
 import { connectTestDB, clearTestDB, disconnectTestDB } from './testDb.js'
 import { User } from '../src/models/User.js'
+import { createStaffAgent } from './helpers.js'
 
 const app = createApp()
 
@@ -154,5 +155,79 @@ describe('role authorization on staff creation', () => {
       role: 'owner',
     })
     expect(adminCreatesOwner.status).toBe(403)
+  })
+})
+
+describe('change password', () => {
+  async function owner() {
+    const agent = request.agent(app)
+    await registerClinic(agent, { email: 'changer@abc-clinic.test' })
+    return agent
+  }
+  const change = (agent, body) => agent.post('/api/v1/auth/change-password').send(body)
+
+  it('changes the password, keeps this session, and only the new password logs in', async () => {
+    const agent = await owner()
+
+    const res = await change(agent, { currentPassword: 'supersecret123', newPassword: 'brand-new-pass1' })
+    expect(res.status).toBe(200)
+
+    // Still signed in on the device that made the change.
+    expect((await agent.get('/api/v1/auth/me')).status).toBe(200)
+
+    const oldLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'changer@abc-clinic.test', password: 'supersecret123' })
+    expect(oldLogin.status).toBe(401)
+    const newLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'changer@abc-clinic.test', password: 'brand-new-pass1' })
+    expect(newLogin.status).toBe(200)
+  })
+
+  it('signs out every other device', async () => {
+    const agent = await owner()
+    const otherDevice = request.agent(app)
+    await otherDevice.post('/api/v1/auth/login').send({ email: 'changer@abc-clinic.test', password: 'supersecret123' })
+    expect((await otherDevice.get('/api/v1/auth/me')).status).toBe(200)
+
+    await change(agent, { currentPassword: 'supersecret123', newPassword: 'brand-new-pass1' })
+
+    const after = await otherDevice.get('/api/v1/auth/me')
+    expect(after.status).toBe(401)
+    expect(after.body.code).toBe('PASSWORD_CHANGED')
+    expect((await agent.get('/api/v1/auth/me')).status).toBe(200)
+  })
+
+  it('refuses a wrong current password without signing the user out', async () => {
+    const agent = await owner()
+
+    const res = await change(agent, { currentPassword: 'not-it', newPassword: 'brand-new-pass1' })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('WRONG_PASSWORD')
+    expect((await agent.get('/api/v1/auth/me')).status).toBe(200)
+  })
+
+  it('rejects a short new password, or one the same as the current one', async () => {
+    const agent = await owner()
+
+    expect((await change(agent, { currentPassword: 'supersecret123', newPassword: 'short' })).status).toBe(400)
+    expect((await change(agent, { currentPassword: 'supersecret123', newPassword: 'supersecret123' })).status).toBe(400)
+  })
+
+  it('needs a signed-in user', async () => {
+    const res = await change(request(app), { currentPassword: 'supersecret123', newPassword: 'brand-new-pass1' })
+    expect(res.status).toBe(401)
+  })
+
+  it('works for every role, and is written to the audit log', async () => {
+    const agent = await owner()
+    const { agent: receptionist } = await createStaffAgent(app, agent, 'receptionist')
+
+    const res = await change(receptionist, { currentPassword: 'supersecret123', newPassword: 'brand-new-pass1' })
+    expect(res.status).toBe(200)
+
+    const logs = await agent.get('/api/v1/audit-logs?action=PASSWORD_CHANGED')
+    expect(logs.body.data.logs).toHaveLength(1)
   })
 })

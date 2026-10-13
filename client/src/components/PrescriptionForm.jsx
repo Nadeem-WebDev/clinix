@@ -65,7 +65,9 @@ export default function PrescriptionForm({ defaultValues, onSubmit, submitLabel,
                   {MEDICINE_FIELDS.map(({ name, label, placeholder }) => {
                     const fieldId = `medicines.${index}.${name}`
                     return (
-                      <div key={name}>
+                      // The medicine name gets its own row on phones - names
+                      // like "Amoxicillin-Clavulanic acid 625mg" are long.
+                      <div key={name} className={name === 'name' ? 'col-span-2 sm:col-span-1' : undefined}>
                         <label
                           htmlFor={fieldId}
                           className="mb-0.5 block text-xs font-medium text-gray-500 dark:text-gray-400"
@@ -105,7 +107,7 @@ export default function PrescriptionForm({ defaultValues, onSubmit, submitLabel,
                   <button
                     type="button"
                     onClick={() => remove(index)}
-                    className="mt-2 flex items-center gap-1 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                    className="-mx-2 mt-1 flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
                   >
                     <Trash2 size={12} aria-hidden="true" />
                     Remove

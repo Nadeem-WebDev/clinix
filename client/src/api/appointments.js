@@ -15,6 +15,12 @@ export async function createAppointment(payload) {
   return data.data.appointment
 }
 
+// Straight into today's queue as WAITING - see createWalkIn on the server.
+export async function addWalkIn(payload) {
+  const { data } = await apiClient.post('/appointments/walk-in', payload)
+  return data.data.appointment
+}
+
 export async function rescheduleAppointment(id, payload) {
   const { data } = await apiClient.patch(`/appointments/${id}`, payload)
   return data.data.appointment

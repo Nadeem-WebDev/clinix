@@ -116,6 +116,7 @@ describe('GET /api/v1/public/clinics/:slug/queue', () => {
     // must fail this test until someone has decided it is safe to publish.
     expect(Object.keys(data).sort()).toEqual(
       [
+        'clinicLogoUrl',
         'clinicName',
         'date',
         'estimatedWaitMinutes',

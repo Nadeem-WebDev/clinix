@@ -3,6 +3,7 @@ import { createApp } from '../src/app.js'
 import { connectTestDB, clearTestDB, disconnectTestDB } from './testDb.js'
 import { registerClinicAgent, createStaffAgent } from './helpers.js'
 import { Patient } from '../src/models/Patient.js'
+import { Payment } from '../src/models/Payment.js'
 
 const app = createApp()
 
@@ -83,6 +84,34 @@ describe('admin dashboard', () => {
     expect(dash.todayRevenue).toBe(200)
     expect(dash.pendingPayments.count).toBe(1)
     expect(dash.pendingPayments.amount).toBe(300)
+  })
+})
+
+describe('admin dashboard revenue and refunds', () => {
+  it('takes today\'s refunds off today\'s revenue, even for money paid on an earlier day', async () => {
+    const { agent: adminAgent } = await registerClinicAgent(app)
+    const patient = await makePatient(adminAgent)
+
+    async function paidInvoice(amount) {
+      const invoice = await adminAgent.post('/api/v1/invoices').send({
+        patientId: patient._id,
+        items: [{ description: 'Fee', quantity: 1, unitPrice: amount }],
+      })
+      const id = invoice.body.data.invoice._id
+      await adminAgent.post(`/api/v1/invoices/${id}/payments`).send({ amount, method: 'CASH' })
+      return id
+    }
+
+    await paidInvoice(200) // paid today, kept
+    const earlier = await paidInvoice(300)
+    await Payment.collection.updateOne(
+      { invoiceId: new mongoose.Types.ObjectId(earlier) },
+      { $set: { paidAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) } },
+    )
+    expect((await adminAgent.get('/api/v1/dashboard')).body.data.todayRevenue).toBe(200)
+
+    await adminAgent.post(`/api/v1/invoices/${earlier}/refund`)
+    expect((await adminAgent.get('/api/v1/dashboard')).body.data.todayRevenue).toBe(-100)
   })
 })
 

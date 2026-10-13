@@ -29,12 +29,26 @@ export const env = {
   // production domain plus a custom domain) - the `cors` package accepts
   // an array of origins natively, so a single value behaves the same as a
   // plain string would.
-  corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  //
+  // RENDER_EXTERNAL_URL is set by Render itself (e.g.
+  // https://clinix.onrender.com), so a single-service Render deploy - where
+  // this server also serves the frontend - needs no CORS_ORIGIN at all.
+  corsOrigins: (process.env.CORS_ORIGIN || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  // Required in production: falling back to a localhost database there
+  // would only surface as a confusing connection timeout on the host.
   mongodbUri:
-    process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/clinic-crm-dev',
+    process.env.NODE_ENV === 'production'
+      ? required('MONGODB_URI')
+      : process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/clinic-crm-dev',
+  // SERVE_CLIENT=true makes this server also serve the built React app
+  // (client/dist) from the same origin - the single-service Render deploy
+  // in render.yaml. Off by default: in dev, Vite serves the client, and the
+  // Vercel + Render split deploys the client separately.
+  serveClient: process.env.SERVE_CLIENT === 'true',
+  clientDistDir: path.resolve(__dirname, '../../../client/dist'),
   jwt: {
     // Only enforced strictly in production; dev falls back to a clearly
     // non-secret placeholder so the app boots without extra setup.
@@ -43,6 +57,8 @@ export const env = {
         ? required('JWT_SECRET')
         : process.env.JWT_SECRET || 'dev-only-insecure-secret',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    // Platform admin sessions are kept short - they can suspend any clinic.
+    platformExpiresIn: '12h',
   },
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
@@ -71,6 +87,29 @@ export const env = {
       queueUpdate: process.env.WHATSAPP_TEMPLATE_QUEUE_UPDATE || 'queue_now_serving',
       documentReady: process.env.WHATSAPP_TEMPLATE_DOCUMENT_READY || 'document_ready',
     },
+  },
+  // Self-ping that keeps a Render free-plan instance awake (jobs/
+  // keepAlive.job.js). Off unless the literal string 'true'. The URL
+  // defaults to this service's own public address on Render.
+  keepAlive: {
+    enabled: process.env.KEEP_ALIVE_ENABLED === 'true',
+    url:
+      process.env.KEEP_ALIVE_URL ||
+      (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL}/api/v1/keep-alive` : null),
+    // Under Render's 15-minute idle limit, and never below one minute.
+    intervalMinutes: Math.min(14, Math.max(1, Number(process.env.KEEP_ALIVE_INTERVAL_MINUTES) || 13)),
+  },
+  email: {
+    // Same kind of hard global kill switch as WhatsApp: only the literal
+    // string 'true' sends anything, so a dev box with real patient emails
+    // in its database never mails anyone by accident.
+    enabled: process.env.EMAIL_ENABLED === 'true',
+    brevoApiKey: process.env.BREVO_API_KEY,
+    brevoBaseUrl: process.env.BREVO_API_BASE_URL || 'https://api.brevo.com/v3',
+    // Must be a sender or domain verified in Brevo.
+    fromAddress: process.env.EMAIL_FROM_ADDRESS,
+    // Shown after the clinic's name: "Sunrise Family Clinic via Clinix".
+    fromName: process.env.EMAIL_FROM_NAME || 'Clinix',
   },
 }
 

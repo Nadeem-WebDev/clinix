@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import healthRoutes from './health.routes.js'
+import keepAliveRoutes from './keepAlive.routes.js'
 import authRoutes from './auth.routes.js'
 import userRoutes from './user.routes.js'
 import patientRoutes from './patient.routes.js'
@@ -14,11 +15,14 @@ import auditLogRoutes from './auditLog.routes.js'
 import clinicRoutes from './clinic.routes.js'
 import publicRoutes from './public.routes.js'
 import whatsappWebhookRoutes from './whatsappWebhook.routes.js'
+import platformRoutes from './platform.routes.js'
 
 const router = Router()
 
 // Versioned API root: /api/v1/*
 router.use('/health', healthRoutes)
+// Unauthenticated no-op for keeping a free-plan instance awake.
+router.use('/keep-alive', keepAliveRoutes)
 router.use('/auth', authRoutes)
 router.use('/users', userRoutes)
 router.use('/patients', patientRoutes)
@@ -38,5 +42,8 @@ router.use('/public', publicRoutes)
 // Unauthenticated, called by Meta rather than by a browser - see
 // whatsappWebhook.routes.js.
 router.use('/whatsapp', whatsappWebhookRoutes)
+
+// Clinix's own admin panel - its own login, nothing clinic-scoped.
+router.use('/platform', platformRoutes)
 
 export default router

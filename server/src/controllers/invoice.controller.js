@@ -1,5 +1,6 @@
 import * as invoiceService from '../services/invoice.service.js'
 import { streamReceiptPdf } from '../services/pdf/receiptPdf.js'
+import { loadClinicLogoForPdf } from '../services/pdf/clinicLogo.js'
 import { Clinic } from '../models/Clinic.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { writeAuditLog } from '../utils/audit.js'
@@ -87,6 +88,15 @@ export async function recordPaymentHandler(req, res, next) {
   }
 }
 
+export async function listReadyToBillHandler(req, res, next) {
+  try {
+    const visits = await invoiceService.listReadyToBill(req.clinicId)
+    return sendSuccess(res, { data: { visits } })
+  } catch (err) {
+    return next(err)
+  }
+}
+
 export async function listPaymentsHandler(req, res, next) {
   try {
     const payments = await invoiceService.listPayments(req.clinicId, req.params.id)
@@ -98,7 +108,7 @@ export async function listPaymentsHandler(req, res, next) {
 
 export async function refundInvoiceHandler(req, res, next) {
   try {
-    const invoice = await invoiceService.refundInvoice(req.clinicId, req.params.id)
+    const invoice = await invoiceService.refundInvoice(req.clinicId, req.params.id, req.user._id)
     await audit(req, invoice._id, 'INVOICE_REFUNDED')
     return sendSuccess(res, { message: 'Invoice refunded', data: { invoice } })
   } catch (err) {
@@ -114,8 +124,9 @@ export async function getReceiptPdfHandler(req, res, next) {
     if (!clinic) throw ApiError.notFound('Clinic not found')
 
     await audit(req, invoice._id, 'RECEIPT_PDF_VIEWED')
+    const logo = await loadClinicLogoForPdf(clinic)
 
-    streamReceiptPdf(res, { clinic, invoice, payments })
+    streamReceiptPdf(res, { clinic, logo, invoice, payments })
   } catch (err) {
     next(err)
   }
