@@ -3,9 +3,19 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import DoctorProfileModal from './DoctorProfileModal.jsx'
 import * as staffApi from '../api/staff.js'
+import * as clinicApi from '../api/clinic.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import { renderWithProviders } from '../test/test-utils.jsx'
 
 vi.mock('../api/staff.js')
+vi.mock('../api/clinic.js')
+vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }))
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const CLINIC = {
+  defaultConsultationFee: 500,
+  workingHours: DAYS.map((day) => ({ day, isOpen: day !== 'sunday', openTime: '09:00', closeTime: '18:00' })),
+}
 
 function doctorFixture(profile) {
   return {
@@ -36,6 +46,8 @@ describe('DoctorProfileModal', () => {
     // The preview is loaded through the API as a Blob and shown via a
     // blob: URL; jsdom has no createObjectURL, so stub it.
     staffApi.fetchDoctorSignature.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    clinicApi.getClinicSettings.mockResolvedValue(CLINIC)
+    useAuth.mockReturnValue({ user: { _id: 'o1', role: 'owner' } })
     URL.createObjectURL = vi.fn(() => 'blob:signature-preview')
     URL.revokeObjectURL = vi.fn()
   })
@@ -212,5 +224,107 @@ describe('DoctorProfileModal', () => {
 
     expect(staffApi.removeDoctorSignature).toHaveBeenCalledWith('d1')
     expect(await screen.findByText('No signature yet')).toBeInTheDocument()
+  })
+
+  describe('fee and working hours', () => {
+    const renderModal = () => renderWithProviders(<DoctorProfileModal open doctorId="d1" onClose={() => {}} />)
+
+    it("lets an owner set the fee and a weekly timetable with a second session", async () => {
+      staffApi.listStaff.mockResolvedValue([doctorFixture(PROFILE)])
+      staffApi.updateDoctorProfile.mockResolvedValue(doctorFixture(PROFILE))
+      const user = userEvent.setup()
+      renderModal()
+
+      const fee = await screen.findByLabelText('Consultation fee (₹)')
+      expect(screen.getByText(/leave blank to use the clinic's fee \(₹500\)/i)).toBeInTheDocument()
+      expect(screen.getByText(/can be booked at any time/i)).toBeInTheDocument()
+      await user.type(fee, '650')
+
+      await user.click(screen.getByRole('switch', { name: 'Fixed weekly hours' }))
+      // Starts from the clinic's hours: Monday-Saturday 9-6, Sunday off.
+      expect(screen.getByLabelText('Monday start time')).toHaveValue('09:00')
+      expect(screen.getByRole('switch', { name: 'Sunday' })).not.toBeChecked()
+
+      await user.clear(screen.getByLabelText('Monday end time'))
+      await user.type(screen.getByLabelText('Monday end time'), '13:00')
+      await user.click(screen.getByRole('button', { name: 'Add a second session on Monday' }))
+      expect(screen.getByLabelText('Monday second session start time')).toHaveValue('17:00')
+      await user.click(screen.getByRole('switch', { name: 'Saturday' }))
+      await user.click(screen.getByRole('button', { name: 'Save details' }))
+
+      await waitFor(() => expect(staffApi.updateDoctorProfile).toHaveBeenCalled())
+      const [, payload] = staffApi.updateDoctorProfile.mock.calls[0]
+      expect(payload.consultationFee).toBe(650)
+      expect(payload.workingHours).toHaveLength(7)
+      expect(payload.workingHours[0]).toEqual({
+        day: 'monday',
+        isAvailable: true,
+        sessions: [
+          { start: '09:00', end: '13:00' },
+          { start: '17:00', end: '20:00' },
+        ],
+      })
+      expect(payload.workingHours[1].sessions).toEqual([{ start: '09:00', end: '18:00' }])
+      expect(payload.workingHours[5]).toEqual({ day: 'saturday', isAvailable: false, sessions: [] })
+    })
+
+    it('shows saved hours, and turning them off sends null', async () => {
+      const hours = DAYS.map((day) => ({
+        day,
+        isAvailable: day === 'tuesday',
+        sessions: day === 'tuesday' ? [{ start: '10:00', end: '13:00' }, { start: '18:00', end: '21:00' }] : [],
+      }))
+      staffApi.listStaff.mockResolvedValue([doctorFixture({ ...PROFILE, consultationFee: 800, workingHours: hours })])
+      staffApi.updateDoctorProfile.mockResolvedValue(doctorFixture(PROFILE))
+      const user = userEvent.setup()
+      renderModal()
+
+      expect(await screen.findByLabelText('Consultation fee (₹)')).toHaveValue(800)
+      expect(screen.getByRole('switch', { name: 'Fixed weekly hours' })).toBeChecked()
+      expect(screen.getByLabelText('Tuesday second session end time')).toHaveValue('21:00')
+      expect(screen.getByRole('switch', { name: 'Monday' })).not.toBeChecked()
+
+      await user.click(screen.getByRole('switch', { name: 'Fixed weekly hours' }))
+      await user.clear(screen.getByLabelText('Consultation fee (₹)'))
+      await user.click(screen.getByRole('button', { name: 'Save details' }))
+
+      await waitFor(() => expect(staffApi.updateDoctorProfile).toHaveBeenCalled())
+      expect(staffApi.updateDoctorProfile.mock.calls[0][1]).toMatchObject({ consultationFee: null, workingHours: null })
+    })
+
+    it('stops a session that ends before it starts', async () => {
+      staffApi.listStaff.mockResolvedValue([doctorFixture(PROFILE)])
+      const user = userEvent.setup()
+      renderModal()
+
+      await user.click(await screen.findByRole('switch', { name: 'Fixed weekly hours' }))
+      await user.clear(screen.getByLabelText('Wednesday end time'))
+      await user.type(screen.getByLabelText('Wednesday end time'), '08:00')
+      await user.click(screen.getByRole('button', { name: 'Save details' }))
+
+      expect(await screen.findByText('End time must be after start time')).toBeInTheDocument()
+      expect(staffApi.updateDoctorProfile).not.toHaveBeenCalled()
+    })
+
+    it("shows a doctor their fee but doesn't let them change it", async () => {
+      useAuth.mockReturnValue({ user: { _id: 'd1', role: 'doctor' } })
+      staffApi.listStaff.mockResolvedValue([doctorFixture({ ...PROFILE, consultationFee: 800 })])
+      staffApi.updateDoctorProfile.mockResolvedValue(doctorFixture(PROFILE))
+      const user = userEvent.setup()
+      renderModal()
+
+      const fee = await screen.findByLabelText('Consultation fee (₹)')
+      expect(fee).toHaveValue(800)
+      expect(fee).toHaveAttribute('readonly')
+      expect(screen.getByText(/set by the clinic's owner or admin/i)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('switch', { name: 'Fixed weekly hours' }))
+      await user.click(screen.getByRole('button', { name: 'Save details' }))
+
+      await waitFor(() => expect(staffApi.updateDoctorProfile).toHaveBeenCalled())
+      const [, payload] = staffApi.updateDoctorProfile.mock.calls[0]
+      expect(payload).not.toHaveProperty('consultationFee')
+      expect(payload.workingHours).toHaveLength(7)
+    })
   })
 })

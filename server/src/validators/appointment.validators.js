@@ -9,6 +9,8 @@ export const createAppointmentSchema = z.object({
   scheduledAt: z.coerce.date({ errorMap: () => ({ message: 'A valid date/time is required' }) }),
   durationMinutes: z.coerce.number().int().min(5).max(480).optional(),
   notes: z.string().trim().optional(),
+  // Set after the user confirms booking outside the doctor's working hours.
+  allowOutsideHours: z.boolean().optional(),
 })
 
 // No date/time: a walk-in is always "now", and always straight into the queue.
@@ -22,6 +24,7 @@ export const rescheduleAppointmentSchema = z.object({
   scheduledAt: z.coerce.date().optional(),
   durationMinutes: z.coerce.number().int().min(5).max(480).optional(),
   notes: z.string().trim().optional(),
+  allowOutsideHours: z.boolean().optional(),
 })
 
 export const listAppointmentsQuerySchema = z.object({

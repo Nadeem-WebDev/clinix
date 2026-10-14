@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PenLine, Trash2 } from 'lucide-react'
+import { PenLine, Plus, Trash2, X } from 'lucide-react'
 import Modal from './Modal.jsx'
 import Button from './Button.jsx'
 import FormField from './FormField.jsx'
@@ -14,13 +14,26 @@ import {
   removeDoctorSignature,
   fetchDoctorSignature,
 } from '../api/staff.js'
+import { getClinicSettings } from '../api/clinic.js'
+import { useAuth } from '../context/AuthContext.jsx'
 import {
   doctorProfileFormSchema,
   toDoctorProfileForm,
+  toDoctorProfilePayload,
 } from '../schemas/staff.js'
+import { DAYS_OF_WEEK } from '../schemas/clinic.js'
+import { DAY_LABELS } from '../utils/doctorHours.js'
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
+
+// The switch matches Clinic Settings' working hours (a styled sr-only
+// checkbox). The time inputs always share a row: the dialog is phone-narrow
+// even on a desktop, so no breakpoint widens them.
+const timeInputClass =
+  'min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:[color-scheme:dark]'
+const switchTrackClass =
+  "relative h-5 w-9 shrink-0 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2 dark:bg-gray-600 dark:peer-checked:bg-blue-500 dark:peer-focus-visible:ring-offset-gray-900"
 
 // Mirrors the server's rules (middleware/upload.js): PNG/JPG only, since
 // the image is drawn straight into the prescription PDF.
@@ -167,16 +180,144 @@ function SignatureSection({ doctor, onUpdated }) {
   )
 }
 
+function TimeRange({ register, index, which, dayLabel }) {
+  const [start, end] = which === 2 ? ['start2', 'end2'] : ['start', 'end']
+  const label = which === 2 ? `${dayLabel} second session` : dayLabel
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <input
+        type="time"
+        aria-label={`${label} start time`}
+        className={timeInputClass}
+        {...register(`workingHours.${index}.${start}`)}
+      />
+      <span className="text-sm text-gray-400 dark:text-gray-500" aria-hidden="true">
+        &ndash;
+      </span>
+      <input
+        type="time"
+        aria-label={`${label} end time`}
+        className={timeInputClass}
+        {...register(`workingHours.${index}.${end}`)}
+      />
+    </div>
+  )
+}
+
+// The weekly timetable bookings are checked against. Off by default: a
+// doctor without fixed hours can be booked at any time.
+function WorkingHoursFields({ register, watch, setValue, errors, doctorName }) {
+  const hasOwnHours = watch('hasOwnHours')
+  return (
+    // min-w-0: a fieldset otherwise refuses to shrink below its content,
+    // pushing the time inputs off a 320px screen.
+    <fieldset className="min-w-0">
+      <legend className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Working hours</legend>
+      <label className="flex cursor-pointer items-center gap-3 py-2 text-sm text-gray-700 dark:text-gray-300">
+        <input type="checkbox" role="switch" className="peer sr-only" {...register('hasOwnHours')} />
+        <span aria-hidden="true" className={switchTrackClass} />
+        Fixed weekly hours
+      </label>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {hasOwnHours
+          ? 'Booking outside these hours asks the front desk to confirm first. Walk-ins are never blocked.'
+          : `No fixed hours: Dr. ${doctorName} can be booked at any time.`}
+      </p>
+      {hasOwnHours && (
+        <div className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
+          {DAYS_OF_WEEK.map((day, index) => {
+            const isAvailable = watch(`workingHours.${index}.isAvailable`)
+            const split = watch(`workingHours.${index}.split`)
+            const dayErrors = errors.workingHours?.[index]
+            const dayError = dayErrors?.end ?? dayErrors?.start2 ?? dayErrors?.end2
+            const setSplit = (value) =>
+              setValue(`workingHours.${index}.split`, value, { shouldDirty: true, shouldValidate: Boolean(dayErrors) })
+            return (
+              <div key={day} className="py-2 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex cursor-pointer items-center gap-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="peer sr-only"
+                      {...register(`workingHours.${index}.isAvailable`)}
+                    />
+                    <span aria-hidden="true" className={switchTrackClass} />
+                    {DAY_LABELS[day]}
+                  </label>
+                  {!isAvailable && (
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      Off
+                    </span>
+                  )}
+                </div>
+                {isAvailable && (
+                  // Every time row gets the full width - on a 360px phone
+                  // anything beside it clips "AM"/"PM" off the times.
+                  <div className="space-y-2">
+                    <div className="flex">
+                      <TimeRange register={register} index={index} which={1} dayLabel={DAY_LABELS[day]} />
+                    </div>
+                    {split ? (
+                      <>
+                        <div className="flex">
+                          <TimeRange register={register} index={index} which={2} dayLabel={DAY_LABELS[day]} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSplit(false)}
+                          aria-label={`Remove ${DAY_LABELS[day]} second session`}
+                          className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-gray-500 hover:underline dark:text-gray-400"
+                        >
+                          <X size={14} aria-hidden="true" />
+                          Remove second session
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSplit(true)}
+                        aria-label={`Add a second session on ${DAY_LABELS[day]}`}
+                        className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        <Plus size={14} aria-hidden="true" />
+                        Second session
+                      </button>
+                    )}
+                  </div>
+                )}
+                {isAvailable && dayError && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{dayError.message}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </fieldset>
+  )
+}
+
 // What a prescription prints about its doctor. Opened by the doctor
 // (account menu) or an owner/admin (Staff page); the server enforces who
 // may edit whom.
 export default function DoctorProfileModal({ open, onClose, doctorId }) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  // The fee is the clinic's call; a doctor sees theirs but can't change it.
+  const canEditFee = ['owner', 'admin'].includes(user?.role)
   const [serverError, setServerError] = useState(null)
   const [saved, setSaved] = useState(false)
   const { data: staff, isLoading } = useQuery({
     queryKey: ['staff'],
     queryFn: listStaff,
+    enabled: open,
+  })
+  // For the fee hint and as the starting timetable. Not required: the form
+  // falls back to Monday-Saturday 9-6 if it can't load.
+  const { data: clinic, isLoading: clinicLoading } = useQuery({
+    queryKey: ['clinic', 'settings'],
+    queryFn: getClinicSettings,
     enabled: open,
   })
   const doctor = staff?.find((u) => u._id === doctorId)
@@ -185,6 +326,8 @@ export default function DoctorProfileModal({ open, onClose, doctorId }) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm({
     resolver: zodResolver(doctorProfileFormSchema),
@@ -199,13 +342,13 @@ export default function DoctorProfileModal({ open, onClose, doctorId }) {
       loadedFor.current = null
       return
     }
-    if (doctor && loadedFor.current !== doctor._id) {
+    if (doctor && !clinicLoading && loadedFor.current !== doctor._id) {
       loadedFor.current = doctor._id
-      reset(toDoctorProfileForm(doctor.doctorProfile))
+      reset(toDoctorProfileForm(doctor.doctorProfile, clinic))
       setServerError(null)
       setSaved(false)
     }
-  }, [open, doctor, reset])
+  }, [open, doctor, clinic, clinicLoading, reset])
 
   const replaceInStaff = (updated) => {
     queryClient.setQueryData(['staff'], (list) =>
@@ -217,9 +360,9 @@ export default function DoctorProfileModal({ open, onClose, doctorId }) {
     setServerError(null)
     setSaved(false)
     try {
-      const updated = await updateDoctorProfile(doctorId, values)
+      const updated = await updateDoctorProfile(doctorId, toDoctorProfilePayload(values, { canEditFee }))
       replaceInStaff(updated)
-      reset(toDoctorProfileForm(updated.doctorProfile))
+      reset(toDoctorProfileForm(updated.doctorProfile, clinic))
       setSaved(true)
     } catch (err) {
       setServerError(errorMessage(err))
@@ -228,13 +371,14 @@ export default function DoctorProfileModal({ open, onClose, doctorId }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Doctor profile">
-      {isLoading || !doctor ? (
+      {isLoading || clinicLoading || !doctor ? (
         <LoadingState label="Loading profile…" />
       ) : (
         <div className="space-y-5">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Printed on Dr. {doctor.name}&apos;s prescriptions. Leave blank
-            anything you don&apos;t want shown.
+            The details are printed on Dr. {doctor.name}&apos;s
+            prescriptions; leave blank anything you don&apos;t want shown.
+            The fee and hours are used for bills and bookings.
           </p>
           <form
             onSubmit={handleSubmit(onSubmit)}
@@ -281,6 +425,39 @@ export default function DoctorProfileModal({ open, onClose, doctorId }) {
                 {...register('registrationCouncil')}
               />
             </FormField>
+            <div className="border-t border-gray-100 pt-4 dark:border-gray-800">
+              <FormField
+                name="consultationFee"
+                label="Consultation fee (₹)"
+                hint={
+                  canEditFee
+                    ? `Starts this doctor's bills. Leave blank to use the clinic's fee (₹${clinic?.defaultConsultationFee ?? 0}).`
+                    : `Set by the clinic's owner or admin.${clinic ? ` Blank means the clinic's fee (₹${clinic.defaultConsultationFee ?? 0}).` : ''}`
+                }
+                error={errors.consultationFee}
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  // readOnly, not disabled: react-hook-form drops a disabled
+                  // field's value, which would fail validation on save.
+                  readOnly={!canEditFee}
+                  className={`${inputClass} read-only:cursor-not-allowed read-only:bg-gray-50 read-only:text-gray-500 dark:read-only:bg-gray-800/50 dark:read-only:text-gray-400`}
+                  {...register('consultationFee')}
+                />
+              </FormField>
+            </div>
+            <div className="border-t border-gray-100 pt-4 dark:border-gray-800">
+              <WorkingHoursFields
+                register={register}
+                watch={watch}
+                setValue={setValue}
+                errors={errors}
+                doctorName={doctor.name}
+              />
+            </div>
             {serverError && (
               <p
                 role="alert"

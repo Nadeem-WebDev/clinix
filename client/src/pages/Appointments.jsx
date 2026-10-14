@@ -21,6 +21,7 @@ import EmptyState from '../components/EmptyState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import WalkInModal from '../components/WalkInModal.jsx'
 import { localDateStr, addLocalDays } from '../utils/date.js'
+import { DAY_LABELS, formatSessions, sessionsOn, weekdayOf } from '../utils/doctorHours.js'
 
 const CAN_MANAGE = ['owner', 'admin', 'receptionist']
 
@@ -36,6 +37,10 @@ export default function Appointments() {
   const [page, setPage] = useState(1)
   const [confirmAction, setConfirmAction] = useState(null) // { type, appointment }
   const [rescheduleTarget, setRescheduleTarget] = useState(null)
+  const [rescheduleError, setRescheduleError] = useState(null)
+  // A move the server refused as outside the doctor's hours, waiting for
+  // "Move anyway": { id, payload, message }.
+  const [rescheduleOutside, setRescheduleOutside] = useState(null)
 
   const dateParams = useMemo(() => {
     const today = new Date()
@@ -74,11 +79,26 @@ export default function Appointments() {
   })
   const rescheduleMutation = useMutation({
     mutationFn: ({ id, payload }) => rescheduleAppointment(id, payload),
+    onMutate: () => setRescheduleError(null),
     onSuccess: () => {
       invalidate()
       setRescheduleTarget(null)
+      setRescheduleOutside(null)
+    },
+    onError: (err, { id, payload }) => {
+      const body = err.response?.data
+      setRescheduleOutside(null)
+      if (body?.code === 'OUTSIDE_WORKING_HOURS' && !payload.allowOutsideHours) {
+        setRescheduleOutside({ id, payload, message: body.message })
+        return
+      }
+      setRescheduleError(body?.message ?? 'Something went wrong. Please try again.')
     },
   })
+  const closeReschedule = () => {
+    setRescheduleTarget(null)
+    setRescheduleError(null)
+  }
 
   const canManage = CAN_MANAGE.includes(user?.role)
   const [walkInOpen, setWalkInOpen] = useState(false)
@@ -283,15 +303,33 @@ export default function Appointments() {
 
       <RescheduleModal
         appointment={rescheduleTarget}
-        onClose={() => setRescheduleTarget(null)}
+        doctor={doctors.find((d) => d._id === rescheduleTarget?.doctorId?._id)}
+        error={rescheduleError}
+        onClose={closeReschedule}
         onSubmit={(payload) => rescheduleMutation.mutate({ id: rescheduleTarget._id, payload })}
+        loading={rescheduleMutation.isPending && !rescheduleOutside}
+      />
+
+      <ConfirmDialog
+        open={Boolean(rescheduleOutside)}
+        title="Move outside working hours?"
+        description={`${rescheduleOutside?.message ?? ''} Move this appointment anyway?`}
+        confirmLabel="Move anyway"
+        variant="primary"
         loading={rescheduleMutation.isPending}
+        onConfirm={() =>
+          rescheduleMutation.mutate({
+            id: rescheduleOutside.id,
+            payload: { ...rescheduleOutside.payload, allowOutsideHours: true },
+          })
+        }
+        onCancel={() => setRescheduleOutside(null)}
       />
     </div>
   )
 }
 
-function RescheduleModal({ appointment, onClose, onSubmit, loading }) {
+function RescheduleModal({ appointment, doctor, error, onClose, onSubmit, loading }) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
 
@@ -328,6 +366,12 @@ function RescheduleModal({ appointment, onClose, onSubmit, loading }) {
             />
           </div>
         </div>
+        <RescheduleHoursHint doctor={doctor} date={date} />
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
             Cancel
@@ -341,5 +385,18 @@ function RescheduleModal({ appointment, onClose, onSubmit, loading }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+function RescheduleHoursHint({ doctor, date }) {
+  const sessions = sessionsOn(doctor, date)
+  if (!sessions) return null
+  const day = DAY_LABELS[weekdayOf(date)]
+  return (
+    <p className="text-xs text-gray-500 dark:text-gray-400">
+      {sessions.length
+        ? `Dr. ${doctor.name} sees patients ${formatSessions(sessions)} on ${day}s.`
+        : `Dr. ${doctor.name} doesn't see patients on ${day}s.`}
+    </p>
   )
 }

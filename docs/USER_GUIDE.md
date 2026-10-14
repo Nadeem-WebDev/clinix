@@ -4,7 +4,7 @@
 Patients, appointments, the waiting-room queue, consultations, prescriptions,
 billing and reports – in one place, on a computer, tablet or phone.
 
-*Last updated: 13 October 2026*
+*Last updated: 14 October 2026*
 
 ---
 
@@ -60,7 +60,9 @@ dark themes.
    password.
 4. **Doctors complete their profile** (account menu → *My doctor profile*):
    qualifications, specialisation, registration number and council, and a
-   photo or scan of their signature. These print on prescriptions.
+   photo or scan of their signature. These print on prescriptions. Each
+   doctor can also set their **working hours**, and the owner or admin can
+   set a doctor's own **consultation fee** (*Staff* → *Profile*).
 5. **Put the waiting-room screen up** (optional): *Settings* shows your
    clinic's waiting-room link – open it on the TV in your waiting area.
 
@@ -104,6 +106,9 @@ dark themes.
 | Add owners and admins | ✅ | — | — | — | — |
 | Switch a doctor/receptionist/nurse account off or on | ✅ | ✅ | — | — | — |
 | **Doctor profile and signature** | ✅ any doctor | ✅ any doctor | ✅ own | — | — |
+| A doctor's working hours | ✅ any doctor | ✅ any doctor | ✅ own | — | — |
+| A doctor's consultation fee | ✅ | ✅ | 👁 own | — | — |
+| Book outside a doctor's working hours (after a warning) | ✅ | ✅ | — | ✅ | — |
 | **Clinic settings** (details, fee, hours, logo, WhatsApp, email) | ✅ | — | — | — | — |
 | **Audit log** | ✅ | ✅ | — | — | — |
 | Change own password | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -136,7 +141,8 @@ dark themes.
    print it for the patient.
 5. **Doctor** – presses **Complete** in the Queue.
 6. **Front desk** – the patient now appears under **Billing → Ready to
-   bill**. Press **Generate Bill** (the consultation fee is filled in), add
+   bill**. Press **Generate Bill** (the doctor's consultation fee is filled
+   in), add
    anything else, create the bill, then **Record Payment** and print the
    receipt.
 
@@ -170,6 +176,11 @@ Opens when you sign in, and shows what matters for your role.
 ### Appointments
 - Book a patient with a doctor for a date and time. Clinix stops two
   bookings overlapping for the same doctor.
+- **Doctor's hours:** if the doctor has set working hours, the booking
+  screen shows them for the chosen day ("Dr. Mehta sees patients 10:00
+  AM–1:00 PM and 5:00 PM–8:00 PM on Tuesdays"). Booking or moving a patient
+  outside those hours asks *Book anyway?* first – useful for an emergency,
+  but it won't happen by mistake. Walk-ins are never blocked.
 - Filter by Today, Tomorrow or Upcoming, and by doctor or status.
 - Reschedule, cancel, or mark a patient as a no-show.
 - **Token numbers:** every visit gets a token, one running sequence for the
@@ -182,6 +193,10 @@ Opens when you sign in, and shows what matters for your role.
 - **Add walk-in** puts a patient straight into today's queue. If they
   already have a booking today, Clinix offers *Mark arrived instead* so they
   aren't added twice.
+- A new patient at the desk needs only name, phone, age and gender. Their
+  **email is optional** – add it and they get their queue updates and "your
+  prescription/bill is ready" messages by email too (if your clinic has email
+  switched on). Walk-ins don't get a booking confirmation.
 - Doctors **Call** the next patient, **Skip** someone who isn't ready (they
   can still be called later), and **Complete** the visit.
 
@@ -219,7 +234,10 @@ Opens when you sign in, and shows what matters for your role.
   always calculated by Clinix.
 - **Ready to bill:** visits the doctor has completed today that haven't been
   billed yet appear at the top of the Billing page. *Generate Bill* fills in
-  the patient, the doctor and the clinic's consultation fee.
+  the patient, the doctor and the consultation fee.
+- **Which fee:** the doctor's own fee if the owner or admin has set one,
+  otherwise the clinic's default fee. On *Create Bill*, picking the doctor
+  fills in their fee. You can always change the amount on a bill.
 - **Take payment** in full or in parts – Cash, UPI, Card, Online or Other.
   The bill shows Unpaid, Partly paid or Paid. A payment can never be more
   than the amount still due.
@@ -260,14 +278,24 @@ Choose a date range (last 7, 30 or 90 days, or any dates):
   printed on that doctor's prescriptions.
 - A signature image (PNG or JPG, up to 1 MB – a clear photo or scan on white
   paper works best).
+- **Consultation fee** – what this doctor charges, filled in on their bills.
+  Leave it blank to use the clinic's default fee. Only the owner or admin
+  can change it; a doctor can see their own.
+- **Working hours** – switch on *Fixed weekly hours*, then for each day
+  either turn it off or set the hours. A day can have two sessions (for
+  example a morning and an evening OPD) – press *Second session*. It starts
+  from the clinic's opening hours, so you only change what's different.
+  With fixed hours off, the doctor can be booked at any time.
 - Edited by the doctor themselves, or by the owner/admin. The signature is
   private: only that doctor and the owner/admin can see it.
 
 ### Clinic settings *(Owner only)*
 - Clinic name, address, contact phone and **contact email** (printed on
   prescriptions and bills, and where patients' email replies arrive).
-- Default consultation fee (used when billing a visit).
-- Working hours for each day of the week.
+- Default consultation fee (used when billing a visit, unless the doctor has
+  their own fee).
+- Working hours for each day of the week. These are the clinic's opening
+  hours; bookings are only checked against a doctor's own working hours.
 - **Time zone** – "today", tokens, reports and printed dates all follow your
   clinic's own clock (India time by default).
 - **Clinic logo** (PNG, JPG or WebP, up to 2 MB) – shown in the app, on the
@@ -358,6 +386,9 @@ support, who will give you a temporary password.
   of the day can still be billed from *Create Bill*.
 - Printed amounts use **"Rs."**, and bills don't show a GSTIN yet.
 - A follow-up counts as *Done* once the patient is seen again.
+- **Doctors' working hours repeat every week.** There's no way to mark a
+  holiday or a day's leave yet – switch that day off for the week, then back
+  on. Each doctor has one consultation fee (no separate follow-up fee yet).
 - One login belongs to one clinic.
 - A doctor who also owns the clinic needs a separate doctor account to see
   patients (only doctor accounts appear in the doctor lists).

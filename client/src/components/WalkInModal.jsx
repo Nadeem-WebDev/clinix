@@ -21,7 +21,7 @@ const errorClass = 'mt-1 text-xs text-red-600 dark:text-red-400'
 const GENDER_LABELS = { male: 'Male', female: 'Female', other: 'Other' }
 
 function emptyValues(doctorId) {
-  return { mode: 'existing', patientId: '', fullName: '', phone: '', age: '', gender: '', doctorId: doctorId || '' }
+  return { mode: 'existing', patientId: '', fullName: '', phone: '', email: '', age: '', gender: '', doctorId: doctorId || '' }
 }
 
 // "Add walk-in to queue": a patient at the desk without a booking. One step -
@@ -177,6 +177,20 @@ export default function WalkInModal({ open, onClose, onAdded, defaultDoctorId = 
                 </label>
                 <input id="walkin-phone" type="tel" autoComplete="off" className={inputClass} {...register('phone')} />
                 {errors.phone && <p className={errorClass}>{errors.phone.message}</p>}
+              </div>
+              <div className="col-span-2">
+                <label htmlFor="walkin-email" className={labelClass}>
+                  Email <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
+                </label>
+                <input
+                  id="walkin-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  className={inputClass}
+                  {...register('email')}
+                />
+                {errors.email && <p className={errorClass}>{errors.email.message}</p>}
               </div>
               <div>
                 <label htmlFor="walkin-age" className={labelClass}>

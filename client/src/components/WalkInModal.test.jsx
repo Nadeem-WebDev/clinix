@@ -78,6 +78,47 @@ describe('Add walk-in to queue', () => {
     await waitFor(() => expect(appointmentsApi.addWalkIn).toHaveBeenCalledWith({ patientId: 'new-1', doctorId: 'doc-1' }))
   })
 
+  it("saves the new patient's email when one is given", async () => {
+    patientsApi.createPatient.mockResolvedValue({ _id: 'new-1', fullName: 'Ravi Kumar', patientId: 'P-019' })
+    const user = userEvent.setup()
+    renderModal({ defaultDoctorId: 'doc-1' })
+
+    await user.click(screen.getByRole('button', { name: 'New patient' }))
+    await user.type(screen.getByLabelText('Full name'), 'Ravi Kumar')
+    await user.type(screen.getByLabelText('Phone'), '9876500011')
+    await user.type(screen.getByLabelText(/email/i), 'ravi@example.com')
+    await user.type(screen.getByLabelText('Age'), '42')
+    await user.selectOptions(screen.getByLabelText('Gender'), 'male')
+    await user.click(screen.getByRole('button', { name: /add to queue/i }))
+
+    await waitFor(() =>
+      expect(patientsApi.createPatient).toHaveBeenCalledWith({
+        fullName: 'Ravi Kumar',
+        phone: '9876500011',
+        email: 'ravi@example.com',
+        age: 42,
+        gender: 'male',
+      }),
+    )
+  })
+
+  it('stops a mistyped email, but never requires one', async () => {
+    const user = userEvent.setup()
+    renderModal({ defaultDoctorId: 'doc-1' })
+
+    await user.click(screen.getByRole('button', { name: 'New patient' }))
+    expect(screen.getByLabelText(/email/i)).toHaveAccessibleName('Email (optional)')
+    await user.type(screen.getByLabelText('Full name'), 'Ravi Kumar')
+    await user.type(screen.getByLabelText('Phone'), '9876500011')
+    await user.type(screen.getByLabelText(/email/i), 'ravi@example')
+    await user.type(screen.getByLabelText('Age'), '42')
+    await user.selectOptions(screen.getByLabelText('Gender'), 'male')
+    await user.click(screen.getByRole('button', { name: /add to queue/i }))
+
+    expect(await screen.findByText('Enter a valid email address')).toBeInTheDocument()
+    expect(patientsApi.createPatient).not.toHaveBeenCalled()
+  })
+
   it('asks for the new patient\'s details before calling the API', async () => {
     const user = userEvent.setup()
     renderModal({ defaultDoctorId: 'doc-1' })

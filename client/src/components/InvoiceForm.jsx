@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
@@ -13,17 +14,31 @@ function money(n) {
   return (Number.isFinite(n) ? n : 0).toFixed(2)
 }
 
-export default function InvoiceForm({ defaultValues, onSubmit, submitLabel, serverError, readOnly }) {
+export default function InvoiceForm({ defaultValues, onSubmit, submitLabel, serverError, readOnly, consultationFee }) {
   const {
     register,
     control,
     handleSubmit,
+    getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(invoiceFormSchema),
     defaultValues: defaultValues ?? { items: [{ ...emptyInvoiceItem }], discount: '', tax: '', notes: '' },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+
+  // When the fee changes after mount (a different doctor picked), move the
+  // "Consultation Fee" price with it - unless someone has typed their own.
+  const lastFee = useRef(consultationFee)
+  useEffect(() => {
+    if (consultationFee === undefined || consultationFee === lastFee.current) return
+    const first = getValues('items.0')
+    if (first?.description === 'Consultation Fee' && String(first.unitPrice) === String(lastFee.current ?? '')) {
+      setValue('items.0.unitPrice', consultationFee, { shouldDirty: true })
+    }
+    lastFee.current = consultationFee
+  }, [consultationFee, getValues, setValue])
 
   // Client-side estimate only, for immediate feedback while typing - the
   // real total is always recomputed server-side and is the only one that

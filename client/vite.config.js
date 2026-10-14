@@ -6,14 +6,15 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// The only pages worth a search result: everything else is the signed-in
-// app, a clinic's patient queue screen, or the Clinix admin panel. The
-// server sends `X-Robots-Tag: noindex` for those too (serveClient.js).
+// The only pages worth a search result besides the landing page at "/":
+// everything else is the signed-in app, a clinic's patient queue screen, or
+// the Clinix admin panel. The server sends `X-Robots-Tag: noindex` for those
+// too (serveClient.js).
 const PUBLIC_PAGES = ['/login', '/register-clinic']
 
 function robotsTxt(siteUrl) {
   return [
-    '# Only the sign-in and sign-up pages are public. Everything else needs a login,',
+    '# Only the landing, sign-in and sign-up pages are public. Everything else needs a login,',
     "# is a clinic's patient queue screen, or is the Clinix admin panel.",
     'User-agent: *',
     'Allow: /$',
@@ -33,7 +34,7 @@ function robotsTxt(siteUrl) {
 }
 
 function sitemapXml(siteUrl) {
-  const urls = PUBLIC_PAGES.map((page) => `  <url><loc>${siteUrl}${page}</loc></url>`).join('\n')
+  const urls = ['/', ...PUBLIC_PAGES].map((page) => `  <url><loc>${siteUrl}${page}</loc></url>`).join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
 }
 

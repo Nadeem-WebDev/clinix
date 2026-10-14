@@ -8,6 +8,7 @@ import { listStaff } from '../api/staff.js'
 import { getClinicSettings } from '../api/clinic.js'
 import { createInvoice } from '../api/invoices.js'
 import { toInvoicePayload } from '../schemas/invoice.js'
+import { consultationFeeFor } from '../schemas/staff.js'
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100'
@@ -21,10 +22,11 @@ export default function InvoiceNew() {
   const { data: staff } = useQuery({ queryKey: ['staff'], queryFn: listStaff })
   const doctors = (staff ?? []).filter((u) => u.role === 'doctor')
 
-  // Clinic Settings' default consultation fee prefills the bill's line
-  // item, so the receptionist starts from a sensible amount instead of a
-  // blank price on every invoice.
+  // The consultation fee prefills the bill's line item - the chosen
+  // doctor's own fee, else Clinic Settings' default - so the receptionist
+  // starts from a sensible amount instead of a blank price on every invoice.
   const { data: clinic } = useQuery({ queryKey: ['clinic', 'settings'], queryFn: getClinicSettings })
+  const fee = clinic ? String(consultationFeeFor(doctors.find((d) => d._id === doctorId), clinic)) : undefined
 
   const onSubmit = async (values) => {
     setServerError(null)
@@ -85,13 +87,14 @@ export default function InvoiceNew() {
             {
               description: 'Consultation Fee',
               quantity: '1',
-              unitPrice: clinic ? String(clinic.defaultConsultationFee ?? 0) : '',
+              unitPrice: fee ?? '',
             },
           ],
           discount: '',
           tax: '',
           notes: '',
         }}
+        consultationFee={fee}
         onSubmit={onSubmit}
         submitLabel="Create Invoice"
         serverError={serverError}

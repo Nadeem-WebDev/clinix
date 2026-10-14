@@ -2,6 +2,7 @@ import * as invoiceService from '../services/invoice.service.js'
 import { streamReceiptPdf } from '../services/pdf/receiptPdf.js'
 import { loadClinicLogoForPdf } from '../services/pdf/clinicLogo.js'
 import { Clinic } from '../models/Clinic.js'
+import { User } from '../models/User.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { writeAuditLog } from '../utils/audit.js'
 import { ApiError } from '../utils/ApiError.js'
@@ -23,14 +24,19 @@ export async function createInvoiceHandler(req, res, next) {
     const payload = { ...req.body }
 
     // Billing directly for a consultation with no line items given - prefill
-    // a single "Consultation Fee" item from the clinic's configured default
-    // (Clinic Settings). The caller can still send explicit items to
-    // override this entirely (e.g. a bill covering more than the fee).
+    // a single "Consultation Fee" item: the bill's doctor's own fee if they
+    // have one, else the clinic's configured default (Clinic Settings). The
+    // caller can still send explicit items to override this entirely (e.g.
+    // a bill covering more than the fee).
     if ((!payload.items || payload.items.length === 0) && payload.consultationId) {
-      const clinic = await Clinic.findById(req.clinicId)
-      payload.items = [
-        { description: 'Consultation Fee', quantity: 1, unitPrice: clinic?.defaultConsultationFee ?? 0 },
-      ]
+      const [clinic, doctor] = await Promise.all([
+        Clinic.findById(req.clinicId),
+        payload.doctorId
+          ? User.findOne({ _id: payload.doctorId, clinicId: req.clinicId }).select('doctorProfile.consultationFee')
+          : null,
+      ])
+      const fee = doctor?.doctorProfile?.consultationFee ?? clinic?.defaultConsultationFee ?? 0
+      payload.items = [{ description: 'Consultation Fee', quantity: 1, unitPrice: fee }]
     }
 
     const invoice = await invoiceService.createInvoice(req.clinicId, payload, req.user._id)

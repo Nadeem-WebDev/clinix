@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import LoadingState from './components/LoadingState.jsx'
@@ -41,6 +41,7 @@ const Staff = lazy(() => import('./pages/Staff.jsx'))
 // but for the opposite reason: almost nobody who loads the app shell will
 // ever open it, and almost nobody who opens it will load the app shell.
 const PublicQueue = lazy(() => import('./pages/PublicQueue.jsx'))
+const Landing = lazy(() => import('./pages/Landing.jsx'))
 const EmailUnsubscribe = lazy(() => import('./pages/EmailUnsubscribe.jsx'))
 
 // Clinix's own admin panel (/platform) - separate login and session from
@@ -54,7 +55,7 @@ export default function App() {
   return (
     <Suspense fallback={<LoadingState label="Loading…" />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register-clinic" element={<RegisterClinic />} />
 

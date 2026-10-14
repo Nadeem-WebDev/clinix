@@ -1,7 +1,27 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
+import { DAYS_OF_WEEK } from './Clinic.js'
 
 export const ROLES = ['owner', 'admin', 'doctor', 'receptionist', 'nurse']
+
+// A doctor's day: off, or one or two sessions ("HH:mm", 24-hour) - many
+// OPDs run a morning and an evening session with a break between.
+const doctorSessionSchema = new mongoose.Schema(
+  {
+    start: { type: String, required: true },
+    end: { type: String, required: true },
+  },
+  { _id: false },
+)
+
+const doctorDaySchema = new mongoose.Schema(
+  {
+    day: { type: String, enum: DAYS_OF_WEEK, required: true },
+    isAvailable: { type: Boolean, default: true },
+    sessions: { type: [doctorSessionSchema], default: [] },
+  },
+  { _id: false },
+)
 
 // Only used for role 'doctor': what a prescription has to say about who
 // wrote it. All free text - degree names and councils vary too much to
@@ -14,6 +34,13 @@ const doctorProfileSchema = new mongoose.Schema(
     specialization: { type: String, trim: true, maxlength: 100 },
     registrationNumber: { type: String, trim: true, maxlength: 50 },
     registrationCouncil: { type: String, trim: true, maxlength: 100 }, // "Maharashtra Medical Council"
+    // Prefills the "Consultation Fee" line on this doctor's bills. Unset
+    // means the clinic's defaultConsultationFee applies.
+    consultationFee: { type: Number, min: 0 },
+    // All 7 days when set, like Clinic.workingHours. Unset means no fixed
+    // hours: the doctor can be booked at any time (the behaviour before
+    // per-doctor hours existed). Bookings outside them need "book anyway".
+    workingHours: { type: [doctorDaySchema], default: undefined },
     signature: {
       data: { type: Buffer, select: false },
       contentType: { type: String },

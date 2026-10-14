@@ -57,10 +57,8 @@ const clinicSchema = new mongoose.Schema(
     // Used as the fallback appointment length when one isn't specified
     // per-booking.
     defaultAppointmentDurationMinutes: { type: Number, default: 15, min: 5 },
-    // Editable via Clinic Settings; not yet read anywhere else (unlike
-    // defaultAppointmentDurationMinutes above, nothing prefills a new
-    // consultation/invoice's fee from this yet - that wiring is still to
-    // be built).
+    // Prefills the "Consultation Fee" line on a new bill, unless the bill's
+    // doctor has their own fee (User.doctorProfile.consultationFee).
     defaultConsultationFee: { type: Number, default: 0, min: 0 },
     workingHours: { type: [workingDaySchema], default: defaultWorkingHours },
     // Per-clinic WhatsApp toggle, flipped by the Owner in Clinic Settings.

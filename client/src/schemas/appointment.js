@@ -34,6 +34,9 @@ export const walkInFormSchema = z
     patientId: z.string().optional(),
     fullName: z.string().trim().optional(),
     phone: z.string().trim().optional(),
+    // Optional: for queue updates and "ready" messages by email. A walk-in
+    // never gets a booking confirmation either way.
+    email: z.string().trim().optional(),
     age: z.string().trim().optional(),
     gender: z.string().optional(),
     doctorId: z.string().min(1, 'Select a doctor'),
@@ -46,6 +49,7 @@ export const walkInFormSchema = z
     }
     if (!values.fullName || values.fullName.length < 2) issue('fullName', 'Full name is required')
     if (!values.phone || values.phone.length < 6) issue('phone', 'A valid phone number is required')
+    if (values.email && !z.string().email().safeParse(values.email).success) issue('email', 'Enter a valid email address')
     const age = Number(values.age)
     if (!values.age || !Number.isInteger(age) || age < 0 || age > 130) issue('age', 'Enter an age in years')
     if (!GENDERS.includes(values.gender)) issue('gender', 'Gender is required')
@@ -55,6 +59,7 @@ export function toQuickPatientPayload(values) {
   return {
     fullName: values.fullName,
     phone: values.phone,
+    ...(values.email ? { email: values.email } : {}),
     age: Number(values.age),
     gender: values.gender,
   }

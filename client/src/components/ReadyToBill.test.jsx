@@ -4,10 +4,12 @@ import userEvent from '@testing-library/user-event'
 import ReadyToBill from './ReadyToBill.jsx'
 import * as invoicesApi from '../api/invoices.js'
 import * as clinicApi from '../api/clinic.js'
+import * as staffApi from '../api/staff.js'
 import { renderWithProviders } from '../test/test-utils.jsx'
 
 vi.mock('../api/invoices.js')
 vi.mock('../api/clinic.js')
+vi.mock('../api/staff.js')
 
 const VISIT = {
   appointmentId: 'a1',
@@ -23,6 +25,7 @@ describe('Ready to bill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clinicApi.getClinicSettings.mockResolvedValue({ defaultConsultationFee: 400 })
+    staffApi.listStaff.mockResolvedValue([{ _id: 'd1', name: 'Kavita Nair', role: 'doctor', active: true }])
   })
 
   it('shows nothing when no visit is waiting to be billed', async () => {
@@ -56,5 +59,19 @@ describe('Ready to bill', () => {
       appointmentId: 'a1',
       consultationId: 'c1',
     })
+  })
+
+  it("starts the bill at the doctor's own fee when they have one", async () => {
+    staffApi.listStaff.mockResolvedValue([
+      { _id: 'd1', name: 'Kavita Nair', role: 'doctor', active: true, doctorProfile: { consultationFee: 650 } },
+    ])
+    invoicesApi.listReadyToBill.mockResolvedValue([VISIT])
+    const user = userEvent.setup()
+    renderWithProviders(<ReadyToBill />)
+
+    const row = (await screen.findByText('Nisha Patel')).closest('li')
+    await user.click(within(row).getByRole('button', { name: /generate bill/i }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByDisplayValue('650')).toBeInTheDocument()
   })
 })

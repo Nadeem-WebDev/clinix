@@ -90,6 +90,12 @@ change should keep it that way. The rules the current pages follow:
   then quantity and unit price, then the amount with the remove button at
   the right. The wrapping `<fieldset>` has `min-w-0` - a fieldset
   otherwise refuses to shrink below its content.
+- **Doctor profile - working hours** are stacked at every width (the
+  dialog is phone-narrow even on a desktop): the day's switch, then its two
+  times side by side across the full row, then a second session's row the
+  same way, with "+ Second session" / "Remove second session" as text links
+  under them. Anything beside a time row clips "AM"/"PM" at 360px. The
+  `<fieldset>` has `min-w-0`, as on invoices.
 - **Settings - working hours:** one row per day with an on/off switch.
   Open days show both times side by side (on their own line on a phone);
   closed days show a "Closed" tag instead of greyed-out inputs. Each time
@@ -190,6 +196,14 @@ Phase 11 added these, all server-side only:
 | `WHATSAPP_REMINDER_HOUR` | Hour (0-23) on **each clinic's own clock** when day-before reminders go out. Defaults to `18`. The job ticks hourly and handles the clinics whose local time is on that hour, so the server's time zone doesn't matter. |
 | `PUBLIC_APP_URL` | Frontend base URL, used to build the `/q/<slug>` link inside messages. Falls back to the first `CORS_ORIGIN`. |
 
+Landing page contact buttons (browser-visible on purpose, read at build
+time) - see [Landing page](#landing-page):
+
+| Variable | Purpose |
+|---|---|
+| `VITE_CONTACT_EMAIL` | Email address for the *email us* button. Blank hides it. |
+| `VITE_CONTACT_WHATSAPP` | WhatsApp number with country code, digits only (e.g. `919822012345`), for the *Chat on WhatsApp* button. Blank hides it. |
+
 Keep-alive for Render's free plan (server-side only) - see
 [Things to know](#things-to-know):
 
@@ -234,8 +248,8 @@ npm run dev:server      # server only
 ## Testing
 
 ```bash
-npm run test:server    # backend tests (Jest + Supertest) - 260 tests, 23 suites (~6 min: each suite starts an in-memory MongoDB)
-npm run test:client    # frontend tests (Vitest + React Testing Library) - 110 tests, 20 files
+npm run test:server    # backend tests (Jest + Supertest) - 282 tests, 24 suites (~6 min: each suite starts an in-memory MongoDB)
+npm run test:client    # frontend tests (Vitest + React Testing Library) - 127 tests, 22 files
 npm run test:e2e       # full acceptance-workflow E2E (see below)
 ```
 
@@ -500,7 +514,8 @@ Open Graph / Twitter tags. Link previews need full URLs, so a build step
   `/register-clinic` (plus the scripts, styles and icons those pages need);
   everything else is the signed-in app, a clinic's patient queue screen or
   the platform panel.
-- **`sitemap.xml`** - the two public pages (only when the site URL is known).
+- **`sitemap.xml`** - the three public pages: the landing page `/`,
+  `/login` and `/register-clinic` (only when the site URL is known).
 
 When the API server serves the app (Render), every other page also gets an
 `X-Robots-Tag: noindex, nofollow` header (`server/src/middleware/serveClient.js`).
@@ -513,9 +528,42 @@ Clinix". The server still answers these paths with 200 (it can't tell which
 client routes exist), but the `noindex` header above keeps them out of search
 results.
 
-There is no marketing page yet, so the login page is what search results
-show. Ranking for searches like "clinic management software" will need a
-real landing page (features, pricing) - the next step for SEO.
+## Landing page
+
+The public marketing page at **`/`** (`client/src/pages/Landing.jsx`) is
+what search results and shared links open. Signed-in staff skip it and go
+straight to `/dashboard`, as on `/login`. Sections:
+
+- **Header** - logo, links to the sections (from `md` up), the theme switch
+  (from `sm` up), *Sign in*, and *Get started* (from 400px up).
+- **Hero** - headline, *Create your clinic* (`/register-clinic`), and a
+  drawn preview of the queue and a prescription (decorative,
+  `aria-hidden`).
+- **Features** (9), **A visit, start to finish** (4 steps), **roles** and
+  **privacy**, **pricing**, an **FAQ** (native `<details>`), a **contact**
+  band and the footer.
+
+Rules for editing it:
+
+- **Only describe what the app does today.** No customer counts,
+  testimonials or compliance claims (no "DPDP compliant"), and nothing
+  about features that don't exist.
+- **The pricing is a placeholder.** `PLANS` at the top of `Landing.jsx`
+  holds three illustrative plans (Starter ₹499, Clinic ₹999, Multi-doctor
+  ₹1,999 a month, by number of doctors). The app has no billing or plan
+  limits - sign-up is free and unlimited - and the note under the plans
+  says getting started is free during early access. Replace both once real
+  plans exist.
+- **Contact buttons come from build-time settings:** `VITE_CONTACT_EMAIL`
+  (a `mailto:` button) and `VITE_CONTACT_WHATSAPP` (country code + number;
+  any non-digits are dropped; becomes a `wa.me` link with a prefilled
+  message). Each button, and the header's *Contact* link, only appears when
+  set. They are `VITE_` variables, so they are baked in at build time -
+  on Render, set them in the dashboard (`render.yaml` lists them) and
+  redeploy to change them.
+- Mobile-first like the rest of the app: checked in Chromium at 320, 375,
+  390, 768, 1024 and 1280px in light and dark, and in WebKit on iPhone SE
+  and iPhone 14 - no sideways scroll, no tap target under 24x24px.
 
 ## Platform admin panel
 
@@ -634,10 +682,11 @@ Code: `server/src/routes/platform.routes.js`,
 
 ## Doctor profile
 
-What a prescription says about the doctor who wrote it. Each doctor
-account has an optional profile: **qualifications** ("MBBS, MD (General
-Medicine)"), **specialisation**, **registration number** and **medical
-council**, plus a **signature image**.
+What a prescription says about the doctor who wrote it, plus what they
+charge and when they work. Each doctor account has an optional profile:
+**qualifications** ("MBBS, MD (General Medicine)"), **specialisation**,
+**registration number** and **medical council**, a **signature image**, a
+**consultation fee** and **working hours**.
 
 - **Who edits it:** the doctor (account menu → *My doctor profile*) or the
   clinic's owner/admin (Staff page → *Profile* on a doctor's row). Other
@@ -666,10 +715,41 @@ council**, plus a **signature image**.
 - The Staff page shows a doctor's qualifications and specialisation under
   their name.
 
+### Consultation fee and working hours
+
+- **Fee:** prefills the "Consultation Fee" line on that doctor's bills -
+  *Generate Bill* (Ready to bill, a consultation), *Create Bill* once the
+  doctor is picked, and `POST /invoices` with a `consultationId` and no
+  items. Blank means the clinic's default fee (Clinic Settings). **Only an
+  owner/admin can set it** - a doctor sees theirs read-only, and the API
+  returns 403 if a doctor sends `consultationFee`. On *Create Bill*,
+  changing the doctor moves the price with it unless someone has typed
+  their own price.
+- **Working hours:** off by default ("No fixed hours" - the doctor can be
+  booked at any time, as before this existed). Switched on, it's a weekly
+  timetable: each day is off, or one or two sessions (a morning and an
+  evening OPD), starting from the clinic's opening hours. The doctor can set
+  their own; so can an owner/admin.
+- **Booking outside the hours asks first.** `POST /appointments` and a
+  reschedule (`PATCH /appointments/:id` with a new time or length) return
+  409 `OUTSIDE_WORKING_HOURS` when the whole slot doesn't fit inside one
+  session that day, in the clinic's time zone - with a message like "That
+  time is outside Dr. Mehta's hours. On Tuesdays they see patients 10:00
+  AM-1:00 PM and 5:00 PM-8:00 PM." and `details: { day, sessions }`. The
+  app shows it in a *Book anyway* / *Move anyway* dialog, which resends
+  with `allowOutsideHours: true` (for emergencies and favours). Walk-ins are
+  never checked - the patient is already at the desk.
+- **Booking screens show the hours:** *Book Appointment* and *Reschedule*
+  show the doctor's sessions for the chosen day ("Dr. Mehta doesn't see
+  patients on Sundays."), and the booking form flags a time outside them
+  before submitting.
+
 Code: `User.doctorProfile` (`server/src/models/User.js`), the profile and
-signature functions in `server/src/services/user.service.js`,
-`server/src/services/pdf/prescriptionPdf.js`, and
-`client/src/components/DoctorProfileModal.jsx`.
+signature functions in `server/src/services/user.service.js`, the hours
+check in `server/src/utils/doctorHours.js` (used by
+`appointment.service.js`), `server/src/services/pdf/prescriptionPdf.js`,
+`client/src/components/DoctorProfileModal.jsx` and
+`client/src/utils/doctorHours.js`.
 
 ## Printed documents (PDFs)
 
@@ -800,8 +880,10 @@ A patient who turns up without a booking is added from **Queue → Add walk-in**
 (or **Appointments → Walk-in**), in one pop-up (`components/WalkInModal.jsx`):
 
 - **Patient:** search an existing patient, or **New patient** with just name,
-  phone, age and gender - the fields the patient API requires. Full details
-  can be added on their profile later.
+  phone, age and gender - the fields the patient API requires - plus an
+  **optional email**, so they can get queue updates and "ready" messages by
+  email (when the clinic has email on). Full details can be added on their
+  profile later.
 - **Doctor:** pre-selected when the queue is filtered to one, or when the
   clinic has only one doctor.
 - No date or time: `POST /appointments/walk-in` creates the visit **now**,
@@ -813,8 +895,8 @@ How it differs from a booking (`createWalkIn` in `appointment.service.js`):
 - **No slot check.** A booking claims a time slot and is refused if it
   overlaps another; a walk-in has no slot - it queues behind whoever is
   waiting - so a doctor's booked slot never blocks a walk-in.
-- **No "appointment confirmed" WhatsApp** - only the queue update any
-  patient gets on joining the queue.
+- **No "appointment confirmed" WhatsApp or email** - only the queue update
+  any patient gets on joining the queue.
 - **No duplicates.** If the patient already has a **booking** today with that
   doctor, the server answers `409 BOOKED_TODAY` with the booking's id and the
   pop-up offers **Mark arrived instead**; if they are already waiting or
@@ -840,8 +922,8 @@ A visit moves from the doctor to the front desk:
 3. **Doctor (Queue):** *Complete* the visit.
 4. **Front desk (Billing):** the visit appears under **Ready to bill** at the
    top of the Billing page - token, patient, doctor and when it was done.
-   **Generate Bill** opens the bill form with the clinic's default
-   consultation fee, already linked to the patient, doctor, appointment and
+   **Generate Bill** opens the bill form with the doctor's consultation fee
+   (or the clinic's default), already linked to the patient, doctor, appointment and
    consultation; creating it opens the bill to take payment, and the visit
    leaves the list.
 
@@ -1316,9 +1398,13 @@ Carried over from Phase 10:
 - No calendar/grid view for appointments - only the List view (with
   Today/Tomorrow/Upcoming filters) from the spec's "Calendar view, List
   view" requirement; a visual calendar is a reasonable later addition.
-- No doctor working-hours/holiday scheduling yet - double-booking
-  *is* prevented (same-doctor time-range overlap check), but nothing stops
-  booking outside a doctor's actual hours since those aren't modeled yet.
+- Doctor working hours are a repeating weekly timetable only: no holidays
+  or leave dates yet (book around them, or switch the day off and back), no
+  per-doctor appointment length, and at most two sessions a day. Booking
+  outside them is a warning the front desk can override, not a hard block.
+- The clinic's own opening hours (Clinic Settings) aren't enforced on
+  bookings - only a doctor's fixed hours are. A doctor without fixed hours
+  can be booked at any time, as before.
 - Times are **displayed** in each viewer's browser time zone, and the date
   pickers send the browser's local date - staff are assumed to be in the
   clinic's time zone. Someone viewing a clinic from a different zone sees
@@ -1331,9 +1417,8 @@ Carried over from Phase 10:
   - the app can't send email. Someone who forgot theirs asks Clinix
   support, who resets it from the platform panel; an owner/admin can't set
   a new password for their own staff.
-- The doctor profile has no per-doctor consultation fee, working hours or
-  holidays yet - fees still come from the clinic default, and nothing stops
-  booking a doctor outside their hours.
+- A doctor has one consultation fee - no separate follow-up or
+  review-visit fee yet.
 - Only accounts with the **doctor** role have a doctor profile. An owner
   who also sees patients needs a separate doctor account (the booking and
   consultation doctor pickers only list doctors).
@@ -1341,16 +1426,19 @@ Carried over from Phase 10:
   removal, so a photo on grey paper prints grey.
 - A person can only belong to one clinic (email is globally unique, not
   per-clinic) - fine for the MVP, would need rework for a multi-clinic user.
-- `npm audit` flags moderate issues in `react-router` (open-redirect CVE)
-  and `esbuild`/`vite` (dev-server only) - fixes require major version
-  bumps; deferred until more of the app can be regression-tested. Adding
-  `puppeteer` (Phase 10, root devDependency, E2E-only) pulled in a high
-  advisory too: `extract-zip` (used by `@puppeteer/browsers` to unpack the
-  Chromium download) has an unvalidated-symlink-path-traversal issue with
-  no fixed version published for any release. It only ever extracts
-  Puppeteer's own pinned Chromium build from Google's CDN during install,
-  never an untrusted archive, so the realistic risk here is low - flagged
-  for visibility, not treated as blocking.
+- `npm audit` (as of 2026-10-14, after `npm audit fix`): what ships to
+  production (`npm audit --omit=dev`) has **2 moderate** findings, both
+  `react-router`/`react-router-dom` (open-redirect advisories) - the fix is
+  React Router 7, a major upgrade deferred until the app's routing can be
+  regression-tested. Everything else left is in **development-only** tools
+  and needs major upgrades: Jest 30, Vitest 5, Vite 8, Tailwind 4 (the app
+  stays on Tailwind 3.4), and Puppeteer 25 (E2E only - its `extract-zip`
+  only ever unpacks Puppeteer's own pinned Chromium download). None of
+  those run on the live server. The earlier critical `proxy-addr`
+  (Express, IP spoofing via IPv4-mapped IPv6 addresses) and the `qs`,
+  `express`, `body-parser`, `morgan` and `shell-quote` advisories were
+  fixed by `npm audit fix` without breaking changes. Don't run
+  `npm audit fix --force`: it makes all of those major upgrades at once.
 - Every page behind the authenticated app shell is route-based
   code-split (`React.lazy` + `Suspense`, Phase 10) - Reports (the heaviest,
   via Recharts) now ships as its own ~420KB chunk that only admins loading
@@ -1404,7 +1492,7 @@ POST /api/v1/auth/change-password   signed-in user: { currentPassword, newPasswo
 GET  /api/v1/users                   any authenticated user: list this clinic's staff (e.g. to pick a doctor)
 POST /api/v1/users                   admin: create a staff member (doctor/receptionist/nurse)
 PATCH /api/v1/users/:id/active       admin: enable/disable a staff member
-PATCH /api/v1/users/:id/doctor-profile   the doctor or owner/admin: qualifications, specialization, registrationNumber, registrationCouncil
+PATCH /api/v1/users/:id/doctor-profile   the doctor or owner/admin: qualifications, specialization, registrationNumber, registrationCouncil, workingHours (null = no fixed hours); consultationFee (null = clinic default) owner/admin only
 PUT  /api/v1/users/:id/signature     the doctor or owner/admin: multipart `signature` (PNG/JPG, 1MB)
 GET  /api/v1/users/:id/signature     the doctor or owner/admin: the signature image (private, no-store)
 DELETE /api/v1/users/:id/signature   the doctor or owner/admin
@@ -1427,11 +1515,11 @@ GET  /api/v1/patients/:id/visits     every role: visit timeline (clinical detail
 GET  /api/v1/patients/:id/follow-ups owner/admin/doctor/receptionist: follow-ups with status (instructions for clinical roles only)
 PATCH /api/v1/patients/:id           admin/receptionist/nurse: update a patient
 
-POST /api/v1/appointments            admin/receptionist: book an appointment for a date/time
+POST /api/v1/appointments            admin/receptionist: book an appointment for a date/time (409 DOUBLE_BOOKED; 409 OUTSIDE_WORKING_HOURS unless allowOutsideHours)
 POST /api/v1/appointments/walk-in    admin/receptionist: patient at the desk -> straight into today's queue as WAITING (409 BOOKED_TODAY / ALREADY_IN_QUEUE)
 GET  /api/v1/appointments            filter by ?date=/?from=/?to=/?doctorId=/?patientId=/?status=, paginated
 GET  /api/v1/appointments/:id
-PATCH /api/v1/appointments/:id       admin/receptionist: reschedule
+PATCH /api/v1/appointments/:id       admin/receptionist: reschedule (same checks as booking)
 POST /api/v1/appointments/:id/arrive     admin/receptionist: BOOKED -> WAITING
 POST /api/v1/appointments/:id/cancel     admin/receptionist
 POST /api/v1/appointments/:id/no-show    admin/receptionist

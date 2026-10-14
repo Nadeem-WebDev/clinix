@@ -120,26 +120,29 @@ Gotchas:
   > innerWidth`, any `overflow-x: auto` box with `scrollWidth > clientWidth`,
   and (in the app shell) `scrollHeight > innerHeight`.
 
-## Open items (as of 2026-10-13)
+## Open items (as of 2026-10-14)
 
-- A large body of work (reports upgrade, Excel export, change password,
-  doctor profile + signature, platform admin panel, Clinix branding/logo/SEO,
-  404 page, mobile card layouts and audit fixes) is **uncommitted** on `main`.
-- `npm audit` reports a critical `proxy-addr` advisory; `npm audit fix` was
-  offered but not run.
+- `npm audit`: the critical `proxy-addr` advisory is fixed (`npm audit fix`,
+  2026-10-14, lock file only). Left: 2 moderate `react-router` findings in
+  production (need React Router 7) and dev-only tooling that needs major
+  upgrades (Jest 30, Vitest 5, Vite 8, Tailwind 4, Puppeteer 25) - see the
+  README's Known limitations. Never `npm audit fix --force`.
 - Refunds are now recorded and subtracted from revenue (README "Refunds"),
   but `server/scripts/backfill-refunds.js` has not been run against Atlas -
   bills refunded before that change still count as revenue there. The owner
   runs it (dry run first); never run it yourself against `.env`'s database.
-- Doctor signature upload: the owner saw "Something went wrong" once; not
-  reproduced locally (upload + save work in Chrome and iPhone WebKit). Owner
-  is re-testing. (The separate broken-preview bug in the two-server dev
-  setup - Helmet's CORP blocking the cross-origin `<img>` - is fixed: the
-  preview now loads via the API client as a blob URL.)
 - Never tested against real services: WhatsApp sends, Brevo email sends,
   Cloudinary uploads, a physical iPhone. Brevo keys go in `.env`
   (`BREVO_API_KEY`, `EMAIL_FROM_ADDRESS` must be a Brevo-verified sender);
   email stays off until `EMAIL_ENABLED=true` and a clinic turns it on.
-- Suggested next modules: public landing page (SEO), subscriptions/payments
-  (Razorpay), forgot password by email, per-doctor fees and working hours,
+- Landing page (`/`, README "Landing page") has **placeholder pricing**
+  (`PLANS` in `client/src/pages/Landing.jsx`) and needs the owner's real
+  `VITE_CONTACT_EMAIL` / `VITE_CONTACT_WHATSAPP` (blank hides the buttons).
+- Per-doctor consultation fee and weekly working hours are built (README
+  "Consultation fee and working hours"). Doctors without fixed hours stay
+  bookable any time on purpose - clinic opening hours are not enforced, so
+  existing clinics see no new warnings. Not built: holidays/leave dates,
+  follow-up fee, per-doctor slot length.
+- Suggested next modules: subscriptions/payments
+  (Razorpay), forgot password by email, doctor leave/holidays,
   medicine favourites, lab tests, calendar view, GST settings.

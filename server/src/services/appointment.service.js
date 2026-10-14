@@ -7,6 +7,7 @@ import { nextSequenceAbove } from '../models/Counter.js'
 import { ApiError } from '../utils/ApiError.js'
 import { dateStrOf, dayRange } from '../utils/dateRange.js'
 import { getClinicTimezone } from './clinic.service.js'
+import { checkDoctorHours, outsideHoursMessage } from '../utils/doctorHours.js'
 import * as whatsapp from './whatsapp.service.js'
 import * as email from './email.service.js'
 
@@ -64,6 +65,19 @@ async function assertNoDoubleBooking(clinicId, tz, doctorId, scheduledAt, durati
   }
 }
 
+// A soft rule, unlike double booking: the front desk can still fit a
+// patient in outside the doctor's hours (an emergency, a favour) by
+// resending with allowOutsideHours, after the app has asked them to confirm.
+function assertWithinDoctorHours(doctor, tz, scheduledAt, durationMinutes, allowOutsideHours) {
+  if (allowOutsideHours) return
+  const result = checkDoctorHours(doctor, scheduledAt, durationMinutes, tz)
+  if (result.fits) return
+  throw ApiError.conflict(outsideHoursMessage(doctor.name, result), 'OUTSIDE_WORKING_HOURS', {
+    day: result.day,
+    sessions: result.sessions,
+  })
+}
+
 // One token sequence per clinic per day, shared by every doctor and by both
 // bookings and walk-ins - so no two patients in the waiting room that day
 // hold the same number. (It used to be per doctor, which gave each doctor's
@@ -96,7 +110,7 @@ async function populateAppointment(appointment) {
 
 export async function createAppointment(clinicId, data, createdByUserId) {
   const { patientId, doctorId, scheduledAt, notes } = data
-  await assertPatientAndDoctorInClinic(clinicId, patientId, doctorId)
+  const { doctor } = await assertPatientAndDoctorInClinic(clinicId, patientId, doctorId)
 
   let { durationMinutes } = data
   if (!durationMinutes) {
@@ -105,6 +119,7 @@ export async function createAppointment(clinicId, data, createdByUserId) {
   }
 
   const tz = await getClinicTimezone(clinicId)
+  assertWithinDoctorHours(doctor, tz, scheduledAt, durationMinutes, data.allowOutsideHours)
   await assertNoDoubleBooking(clinicId, tz, doctorId, scheduledAt, durationMinutes)
   const tokenNumber = await generateTokenNumber(clinicId, tz, scheduledAt)
 
@@ -251,6 +266,8 @@ export async function rescheduleAppointment(clinicId, id, data) {
   const tz = await getClinicTimezone(clinicId)
 
   if (data.scheduledAt || data.durationMinutes) {
+    const doctor = await User.findById(appointment.doctorId).select('name doctorProfile')
+    if (doctor) assertWithinDoctorHours(doctor, tz, scheduledAt, durationMinutes, data.allowOutsideHours)
     await assertNoDoubleBooking(clinicId, tz, appointment.doctorId, scheduledAt, durationMinutes, appointment._id)
   }
 

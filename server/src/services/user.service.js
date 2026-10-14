@@ -72,10 +72,23 @@ async function findEditableDoctor(clinicId, requester, doctorId, select) {
 }
 
 export async function updateDoctorProfile(clinicId, requester, doctorId, fields) {
+  // What a doctor charges is the clinic's call: a doctor may set their own
+  // hours, but not their own fee.
+  if (fields.consultationFee !== undefined && !['owner', 'admin'].includes(requester.role)) {
+    throw ApiError.forbidden("Only the clinic's owner or admin can change a doctor's fee")
+  }
   const doctor = await findEditableDoctor(clinicId, requester, doctorId)
   if (!doctor.doctorProfile) doctor.doctorProfile = {}
   for (const key of PROFILE_FIELDS) {
     if (fields[key] !== undefined) doctor.doctorProfile[key] = fields[key] || undefined
+  }
+  if (fields.consultationFee !== undefined) doctor.doctorProfile.consultationFee = fields.consultationFee ?? undefined
+  if (fields.workingHours !== undefined) {
+    // A day off keeps no sessions, so "available" always means "has hours".
+    doctor.doctorProfile.workingHours = fields.workingHours?.map((d) => ({
+      ...d,
+      sessions: d.isAvailable ? d.sessions : [],
+    }))
   }
   await doctor.save()
   return doctor

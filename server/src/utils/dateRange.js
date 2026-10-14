@@ -73,6 +73,13 @@ export function localHourOf(date, tz) {
   return zonedParts(new Date(date), tz).hour
 }
 
+// 'HH:mm' (24-hour) on the clinic's wall clock at this instant.
+export function localTimeOf(date, tz) {
+  requireTz(tz)
+  const p = zonedParts(new Date(date), tz)
+  return `${pad2(p.hour)}:${pad2(p.minute)}`
+}
+
 export function todayDateStr(tz) {
   return dateStrOf(new Date(), tz)
 }
