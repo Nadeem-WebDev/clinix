@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import Landing from './Landing.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -70,4 +70,55 @@ describe('Landing page', () => {
     renderLanding({ signedIn: true })
     expect(screen.getByText('Dashboard page')).toBeInTheDocument()
   })
+
+  describe('motion', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+      window.scrollY = 0
+    })
+
+    it('scrolls smoothly on this page only, and offers a way back to the top', () => {
+      const { unmount } = renderWithProviders(<LandingOnly />)
+      expect(document.documentElement).toHaveClass('motion-safe:scroll-smooth')
+      expect(screen.queryByRole('button', { name: 'Back to top' })).not.toBeInTheDocument()
+
+      window.scrollTo = vi.fn()
+      window.scrollY = 900
+      fireEvent.scroll(window)
+      fireEvent.click(screen.getByRole('button', { name: 'Back to top' }))
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+
+      unmount()
+      expect(document.documentElement).not.toHaveClass('motion-safe:scroll-smooth')
+    })
+
+    it('moves the preview queue along like a real OPD', () => {
+      vi.useFakeTimers()
+      renderWithProviders(<LandingOnly />)
+      const preview = () => document.querySelector('[aria-hidden="true"] ul').textContent
+
+      expect(preview()).toMatch(/7Priya S\.With doctor8Rahul M\.Waiting9Anita K\.Waiting/)
+      act(() => vi.advanceTimersByTime(2800))
+      expect(preview()).toMatch(/8Rahul M\.With doctor9Anita K\.Waiting10Imran A\.Waiting/)
+    })
+
+    it('keeps the preview still for visitors who ask for reduced motion', () => {
+      vi.useFakeTimers()
+      const original = window.matchMedia
+      window.matchMedia = (query) => ({ ...original(query), matches: query === '(prefers-reduced-motion: reduce)' })
+      try {
+        renderWithProviders(<LandingOnly />)
+        act(() => vi.advanceTimersByTime(10000))
+        expect(document.querySelector('[aria-hidden="true"] ul').textContent).toMatch(/^7Priya S\.With doctor/)
+      } finally {
+        window.matchMedia = original
+      }
+    })
+  })
 })
+
+// The page on its own, for tests that drive timers and scrolling.
+function LandingOnly() {
+  useAuth.mockReturnValue({ isAuthenticated: false, user: null })
+  return <Landing />
+}

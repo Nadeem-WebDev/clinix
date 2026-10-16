@@ -43,7 +43,14 @@ export default function Login() {
       </div>
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-6 flex flex-col items-center gap-2">
-          <ClinixLogo size={40} />
+          {/* Back to the landing page - these pages have no other way there. */}
+          <Link
+            to="/"
+            aria-label="Clinix home"
+            className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+          >
+            <ClinixLogo size={40} />
+          </Link>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Clinix
           </h1>

@@ -199,7 +199,12 @@ export default function Staff() {
             </div>
           )}
 
-          <FormField name="name" label="Full name" error={errors.name}>
+          <FormField
+            name="name"
+            label="Full name"
+            hint={'For a doctor, leave out "Dr." - it\'s added automatically.'}
+            error={errors.name}
+          >
             <input className={inputClass} {...register('name')} />
           </FormField>
           <FormField name="email" label="Email" error={errors.email}>

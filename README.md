@@ -249,7 +249,7 @@ npm run dev:server      # server only
 
 ```bash
 npm run test:server    # backend tests (Jest + Supertest) - 282 tests, 24 suites (~6 min: each suite starts an in-memory MongoDB)
-npm run test:client    # frontend tests (Vitest + React Testing Library) - 127 tests, 22 files
+npm run test:client    # frontend tests (Vitest + React Testing Library) - 132 tests, 23 files
 npm run test:e2e       # full acceptance-workflow E2E (see below)
 ```
 
@@ -532,7 +532,8 @@ results.
 
 The public marketing page at **`/`** (`client/src/pages/Landing.jsx`) is
 what search results and shared links open. Signed-in staff skip it and go
-straight to `/dashboard`, as on `/login`. Sections:
+straight to `/dashboard`, as on `/login`. The Clinix logo on `/login` and
+`/register-clinic` links back here (`aria-label="Clinix home"`). Sections:
 
 - **Header** - logo, links to the sections (from `md` up), the theme switch
   (from `sm` up), *Sign in*, and *Get started* (from 400px up).
@@ -542,6 +543,32 @@ straight to `/dashboard`, as on `/login`. Sections:
 - **Features** (9), **A visit, start to finish** (4 steps), **roles** and
   **privacy**, **pricing**, an **FAQ** (native `<details>`), a **contact**
   band and the footer.
+
+Motion (no animation library - CSS transitions, Tailwind keyframes
+`fade-up` / `fade-in` / `float` in `tailwind.config.js`, and
+IntersectionObserver):
+
+- **Smooth scrolling** for the in-page links. `Landing` adds
+  `motion-safe:scroll-smooth` to `<html>` on mount and removes it on
+  leaving, so the rest of the app scrolls normally. Sections keep
+  `scroll-mt-20` so the sticky header doesn't cover their titles.
+- **Hero entrance:** the badge, headline, text and buttons fade up one
+  after another; the floating prescription card bobs gently.
+- **Live preview:** the drawn queue moves along every 2.8s - the patient
+  with the doctor leaves, the next goes in, a new token joins (a loop of
+  six made-up names).
+- **Reveal on scroll:** section titles and cards fade and slide up as they
+  enter the screen (`Reveal`), cards in a grid staggered. Each stays
+  visible once shown.
+- **Hover:** feature and pricing cards lift; feature icons fill blue; button
+  arrows nudge right; FAQ answers fade in when opened.
+- **Header:** gains a shadow once you scroll, and underlines the section
+  you're reading (`aria-current="location"`).
+- **Back to top** button after 600px of scrolling.
+- **Reduced motion:** with the OS's "reduce motion" setting on, all of the
+  above is off - content shows at once, the queue stands still, scrolling
+  jumps. Without IntersectionObserver (old browsers, jsdom) content simply
+  shows.
 
 Rules for editing it:
 
@@ -714,6 +741,10 @@ charge and when they work. Each doctor account has an optional profile:
   chosen; the text fields are saved with *Save details*.
 - The Staff page shows a doctor's qualifications and specialisation under
   their name.
+- The app writes "Dr." before a doctor's name itself (screens, PDFs, the
+  public queue), so a name saved as "Dr. Kavita Nair" shows as "Dr. Dr.
+  Kavita Nair". The *New Staff Member* form's name field says to leave
+  "Dr." out; nothing strips it if someone types it anyway.
 
 ### Consultation fee and working hours
 

@@ -76,6 +76,11 @@ describe('Login flow', () => {
     expect(navigateMock).not.toHaveBeenCalled()
   })
 
+  it('links the logo back to the landing page', async () => {
+    renderLogin()
+    expect(await screen.findByRole('link', { name: 'Clinix home' })).toHaveAttribute('href', '/')
+  })
+
   it('rejects an invalid email before ever calling the API', async () => {
     const user = userEvent.setup()
     renderLogin()

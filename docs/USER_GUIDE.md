@@ -4,7 +4,7 @@
 Patients, appointments, the waiting-room queue, consultations, prescriptions,
 billing and reports – in one place, on a computer, tablet or phone.
 
-*Last updated: 14 October 2026*
+*Last updated: 16 October 2026*
 
 ---
 
@@ -57,7 +57,8 @@ dark themes.
    The logo and details appear on every prescription and receipt.
 3. **Add your team** (*Staff*): create an account for each doctor,
    receptionist and nurse. Each person signs in with their own email and
-   password.
+   password. Type a doctor's name **without "Dr."** (for example *Kavita
+   Nair*) – Clinix adds "Dr." itself on screens and printouts.
 4. **Doctors complete their profile** (account menu → *My doctor profile*):
    qualifications, specialisation, registration number and council, and a
    photo or scan of their signature. These print on prescriptions. Each

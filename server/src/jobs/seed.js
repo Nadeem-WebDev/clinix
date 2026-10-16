@@ -229,7 +229,7 @@ async function seedClinicAndOwner() {
 async function seedStaff(clinicId, ownerRole) {
   const doctor = await userService.createStaff(
     clinicId,
-    { name: 'Dr. Kavita Nair', email: `doctor@${DEMO_EMAIL_DOMAIN}`, password: DEMO_PASSWORD, role: 'doctor' },
+    { name: 'Kavita Nair', email: `doctor@${DEMO_EMAIL_DOMAIN}`, password: DEMO_PASSWORD, role: 'doctor' },
     ownerRole,
   )
   const receptionist = await userService.createStaff(
