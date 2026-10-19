@@ -56,6 +56,21 @@ export const whatsappWebhookRateLimiter = rateLimit({
   },
 })
 
+// Razorpay webhooks - like Meta's, sized for bursts and retries; a backstop,
+// since every call is signature-checked anyway.
+export const razorpayWebhookRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.nodeEnv === 'test',
+  message: {
+    success: false,
+    message: 'Too many requests.',
+    code: 'RATE_LIMITED',
+  },
+})
+
 // The email unsubscribe endpoint - unauthenticated, so capped low enough
 // that guessing signatures is pointless, and well above what a patient
 // clicking their own link could ever hit.

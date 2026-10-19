@@ -36,6 +36,7 @@ const Documents = lazy(() => import('./pages/Documents.jsx'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs.jsx'))
 const Settings = lazy(() => import('./pages/Settings.jsx'))
 const Staff = lazy(() => import('./pages/Staff.jsx'))
+const Subscription = lazy(() => import('./pages/Subscription.jsx'))
 
 // Public, no-login waiting-room queue. Lazy like the authenticated pages -
 // but for the opposite reason: almost nobody who loads the app shell will
@@ -111,6 +112,7 @@ export default function App() {
             {/* Owner-exclusive: the one surface admin does NOT get. */}
             <Route element={<ProtectedRoute allowedRoles={['owner']} />}>
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/subscription" element={<Subscription />} />
             </Route>
           </Route>
         </Route>

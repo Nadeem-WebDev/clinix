@@ -5,6 +5,7 @@ import { WhatsappMessage } from '../models/WhatsappMessage.js'
 import { whatsappClient } from './whatsappClient.js'
 import { toE164 } from '../utils/phone.js'
 import { DEFAULT_TIMEZONE } from '../utils/dateRange.js'
+import * as billing from './billing.service.js'
 
 // Outbound WhatsApp, via Meta's Cloud API.
 //
@@ -145,6 +146,17 @@ export async function sendTemplateMessage({
         ...base,
         status: 'QUEUED',
         errorMessage: 'Not sent: WhatsApp is disabled for this clinic',
+      })
+    }
+
+    // A Clinic-plan-and-up feature (config/plans.js); always on with
+    // billing switched off.
+    if (!(await billing.messagingAllowed(clinicId))) {
+      logSkip("not included in the clinic's plan", { templateName, clinicId })
+      return recordMessage({
+        ...base,
+        status: 'QUEUED',
+        errorMessage: "Not sent: WhatsApp isn't included in the clinic's plan, or the subscription has lapsed",
       })
     }
 

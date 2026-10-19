@@ -14,12 +14,17 @@ import {
   ExternalLink,
   ImageUp,
   Trash2,
+  CreditCard,
+  ChevronRight,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import Button from '../components/Button.jsx'
 import FormField from '../components/FormField.jsx'
 import LoadingState from '../components/LoadingState.jsx'
 import ErrorState from '../components/ErrorState.jsx'
 import { getClinicSettings, updateClinicSettings, uploadClinicLogo, removeClinicLogo } from '../api/clinic.js'
+import { getBilling } from '../api/billing.js'
+import { billingSummaryLine } from '../utils/billing.js'
 import { clinicSettingsFormSchema, fromClinic, toClinicPayload, DAYS_OF_WEEK, timeZoneOptions } from '../schemas/clinic.js'
 
 const inputClass =
@@ -153,6 +158,26 @@ const DAY_LABELS = {
   sunday: 'Sunday',
 }
 
+// The way in to Settings -> Subscription, with where things stand.
+function SubscriptionLink() {
+  const { data: billing } = useQuery({ queryKey: ['billing'], queryFn: getBilling, staleTime: 5 * 60 * 1000 })
+  return (
+    <Link
+      to="/settings/subscription"
+      className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-blue-800"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <CreditCard size={20} className="shrink-0 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">Subscription</span>
+          <span className="block text-sm text-gray-500 dark:text-gray-400">{billing ? billingSummaryLine(billing) : 'Loading…'}</span>
+        </span>
+      </span>
+      <ChevronRight size={18} className="shrink-0 text-gray-400" aria-hidden="true" />
+    </Link>
+  )
+}
+
 export default function Settings() {
   const queryClient = useQueryClient()
   const [serverError, setServerError] = useState(null)
@@ -237,6 +262,8 @@ export default function Settings() {
         <Building2 size={22} aria-hidden="true" />
         Clinic Settings
       </h1>
+
+      <SubscriptionLink />
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
         {serverError && (

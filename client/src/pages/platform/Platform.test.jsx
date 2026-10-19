@@ -75,6 +75,21 @@ const DETAIL = {
   },
   activity: [],
   platformActions: [],
+  billing: {
+    enforced: true,
+    status: 'trialing',
+    access: 'full',
+    plan: null,
+    trialEndsAt: '2026-09-15T00:00:00.000Z',
+    readOnlyFrom: null,
+    usage: { doctors: 1, staff: 1 },
+    plans: [
+      { code: 'starter', name: 'Starter', pricePaise: 49900, maxDoctors: 1, maxStaff: 2, messaging: false, available: true },
+      { code: 'clinic', name: 'Clinic', pricePaise: 99900, maxDoctors: 3, maxStaff: null, messaging: true, available: true },
+      { code: 'multi', name: 'Multi-doctor', pricePaise: 199900, maxDoctors: 5, maxStaff: null, messaging: true, available: true },
+    ],
+    subscriptions: [],
+  },
 }
 
 describe('platform panel', () => {
@@ -191,5 +206,25 @@ describe('platform panel', () => {
 
     await user.click(within(result).getByRole('button', { name: 'Done' }))
     expect(screen.queryByText('Abc23defGh45')).not.toBeInTheDocument()
+  })
+
+  it('records a plan a clinic paid for outside Razorpay', async () => {
+    platformApi.updateClinicBilling.mockResolvedValue({ ...DETAIL.billing, status: 'manual', plan: 'clinic' })
+    const user = userEvent.setup()
+    renderPlatform('/platform/clinics/c1')
+
+    const card = (await screen.findByRole('heading', { name: 'Subscription' })).closest('section')
+    expect(card).toHaveTextContent(/Free trial/)
+    await user.selectOptions(within(card).getByLabelText('Plan'), 'clinic')
+    await user.type(within(card).getByLabelText('Paid until'), '2026-12-31')
+    await user.type(within(card).getByLabelText(/note/i), 'Bank transfer, 3 months')
+    await user.click(within(card).getByRole('button', { name: 'Save plan' }))
+
+    await waitFor(() => expect(platformApi.updateClinicBilling).toHaveBeenCalled())
+    const [clinicId, payload] = platformApi.updateClinicBilling.mock.calls[0]
+    expect(clinicId).toBe('c1')
+    expect(payload).toMatchObject({ manualPlan: 'clinic', manualNote: 'Bank transfer, 3 months' })
+    expect(new Date(payload.manualPaidUntil).getDate()).toBe(31)
+    expect(await within(card).findByRole('status')).toHaveTextContent('Saved.')
   })
 })

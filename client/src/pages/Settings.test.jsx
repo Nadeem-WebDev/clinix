@@ -3,9 +3,11 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Settings from './Settings.jsx'
 import * as clinicApi from '../api/clinic.js'
+import * as billingApi from '../api/billing.js'
 import { renderWithProviders } from '../test/test-utils.jsx'
 
 vi.mock('../api/clinic.js')
+vi.mock('../api/billing.js')
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
@@ -23,9 +25,21 @@ function clinicFixture(overrides = {}) {
   }
 }
 
+const TRIAL = { enforced: true, status: 'trialing', access: 'full', trialEndsAt: new Date(Date.now() + 9.5 * 24 * 3600 * 1000).toISOString() }
+
 describe('Clinic Settings - WhatsApp notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
+  })
+
+  it('links to the subscription, saying where it stands', async () => {
+    clinicApi.getClinicSettings.mockResolvedValue(clinicFixture())
+    renderWithProviders(<Settings />)
+
+    const link = await screen.findByRole('link', { name: /subscription/i })
+    expect(link).toHaveAttribute('href', '/settings/subscription')
+    await waitFor(() => expect(link).toHaveTextContent('Free trial, 10 days left'))
   })
 
   it('reflects the clinic\'s current WhatsApp setting', async () => {
@@ -72,6 +86,7 @@ describe('Clinic Settings - WhatsApp notifications', () => {
 describe('Clinic Settings - email notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
   })
 
   it('saves the email toggle and the clinic\'s contact email', async () => {
@@ -110,6 +125,7 @@ describe('Clinic Settings - email notifications', () => {
 describe('Clinic Settings - working hours', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
   })
 
   it('shows open days with labelled times and closed days as "Closed"', async () => {
@@ -181,6 +197,7 @@ describe('Clinic Settings - working hours', () => {
 describe('Clinic Settings - time zone', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
   })
 
   it('shows the saved time zone, defaulting to Asia/Kolkata', async () => {
@@ -215,6 +232,7 @@ describe('Clinic Settings - time zone', () => {
 describe('Clinic Settings - patient queue link', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
     vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
   })
 
@@ -239,6 +257,7 @@ describe('Clinic Settings - patient queue link', () => {
 describe('Clinic Settings - clinic logo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    billingApi.getBilling.mockResolvedValue(TRIAL)
   })
 
   const pngFile = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'logo.png', { type: 'image/png' })

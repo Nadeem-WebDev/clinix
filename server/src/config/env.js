@@ -111,6 +111,30 @@ export const env = {
     // Shown after the clinic's name: "Sunrise Family Clinic via Clinix".
     fromName: process.env.EMAIL_FROM_NAME || 'Clinix',
   },
+  // Clinic subscriptions through Razorpay (services/billing.service.js).
+  // A hard switch like WhatsApp's: unless BILLING_ENABLED is exactly
+  // 'true', every clinic is free and unlimited and nothing calls Razorpay.
+  billing: {
+    enabled: process.env.BILLING_ENABLED === 'true',
+    trialDays: 14,
+    // Days of full access after a failed payment or the end of a trial or
+    // paid period, before the clinic becomes read-only.
+    graceDays: 7,
+    razorpay: {
+      keyId: process.env.RAZORPAY_KEY_ID?.trim(),
+      keySecret: process.env.RAZORPAY_KEY_SECRET?.trim(),
+      // Set on the webhook in the Razorpay dashboard; checks each webhook's
+      // X-Razorpay-Signature.
+      webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET?.trim(),
+      baseUrl: process.env.RAZORPAY_API_BASE_URL || 'https://api.razorpay.com/v1',
+      // Razorpay plan ids (plan_...), one per config/plans.js plan.
+      plans: {
+        starter: process.env.RAZORPAY_PLAN_STARTER?.trim(),
+        clinic: process.env.RAZORPAY_PLAN_CLINIC?.trim(),
+        multi: process.env.RAZORPAY_PLAN_MULTI?.trim(),
+      },
+    },
+  },
 }
 
 // Where the frontend is served from, used to build the public queue link

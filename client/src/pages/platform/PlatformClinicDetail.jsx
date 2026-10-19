@@ -23,6 +23,7 @@ import {
   resetStaffPassword,
 } from '../../api/platform.js'
 import { formatDate, formatDateTime, timeAgo } from './format.js'
+import PlatformBillingCard from './PlatformBillingCard.jsx'
 
 const ROLE_LABELS = {
   owner: 'Owner',
@@ -202,7 +203,7 @@ export default function PlatformClinicDetail() {
   if (isLoading) return <LoadingState label="Loading clinic…" />
   if (isError) return <ErrorState onRetry={refetch} />
 
-  const { clinic, staff, usage, activity, platformActions } = data
+  const { clinic, staff, usage, activity, platformActions, billing } = data
 
   return (
     <div className="space-y-6">
@@ -316,6 +317,9 @@ export default function PlatformClinicDetail() {
             </InfoRow>
           </dl>
         </Card>
+
+        {/* Keyed so its fields reload after a save refreshes the data. */}
+        {billing && <PlatformBillingCard key={JSON.stringify(billing)} clinicId={clinic._id} billing={billing} />}
 
         <Card title="Recent activity">
           {activity.length === 0 ? (

@@ -51,3 +51,8 @@ export async function resetStaffPassword(clinicId, userId) {
   )
   return data.data
 }
+
+export async function updateClinicBilling(clinicId, payload) {
+  const { data } = await apiClient.patch(`/platform/clinics/${clinicId}/billing`, payload)
+  return data.data.billing
+}

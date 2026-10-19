@@ -84,9 +84,12 @@ describe('serving the built client from the API server', () => {
     const csp = res.headers['content-security-policy']
     const hash = crypto.createHash('sha256').update(INLINE_SCRIPT, 'utf8').digest('base64')
 
-    expect(csp).toContain(`script-src 'self' 'sha256-${hash}'`)
+    expect(csp).toContain(`script-src 'self' https://checkout.razorpay.com https://cdn.razorpay.com 'sha256-${hash}'`)
     expect(csp).not.toContain("'unsafe-inline' 'sha256")
     expect(csp).toMatch(/img-src[^;]*https:\/\/res\.cloudinary\.com/)
+    // Razorpay's subscription checkout: its script, its frames, its calls.
+    expect(csp).toMatch(/frame-src 'self' https:\/\/api\.razorpay\.com https:\/\/checkout\.razorpay\.com/)
+    expect(csp).toContain("connect-src 'self' https://*.razorpay.com")
   })
 
   it('does not send upgrade-insecure-requests outside production', async () => {

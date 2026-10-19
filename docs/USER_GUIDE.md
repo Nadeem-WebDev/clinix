@@ -4,7 +4,7 @@
 Patients, appointments, the waiting-room queue, consultations, prescriptions,
 billing and reports – in one place, on a computer, tablet or phone.
 
-*Last updated: 16 October 2026*
+*Last updated: 19 October 2026*
 
 ---
 
@@ -50,7 +50,7 @@ dark themes.
 
 1. **Create your clinic.** On the sign-in page choose *Create your clinic*,
    then enter the clinic's details and your own. You become the clinic's
-   **Owner**.
+   **Owner**, and the clinic starts a **14-day free trial** of everything.
 2. **Set up the clinic** (*Settings*, Owner only): address, phone and
    contact email, default consultation fee, working hours, time zone, and
    your clinic logo.
@@ -111,6 +111,7 @@ dark themes.
 | A doctor's consultation fee | ✅ | ✅ | 👁 own | — | — |
 | Book outside a doctor's working hours (after a warning) | ✅ | ✅ | — | ✅ | — |
 | **Clinic settings** (details, fee, hours, logo, WhatsApp, email) | ✅ | — | — | — | — |
+| **Subscription** – choose a plan, pay, cancel | ✅ | — | — | — | — |
 | **Audit log** | ✅ | ✅ | — | — | — |
 | Change own password | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -305,6 +306,42 @@ Choose a date range (last 7, 30 or 90 days, or any dates):
   (see below).
 - Your waiting-room screen link.
 
+### Subscription *(Owner only)*
+Open it from the top of *Settings*.
+- **Every clinic starts with a 14-day free trial of everything** – no card
+  needed. A reminder appears at the top of every page in the trial's last
+  week.
+- **Plans** (per month):
+
+  | Plan | Price | Doctors | Other staff | WhatsApp & email messages |
+  |---|---|---|---|---|
+  | Starter | ₹499 | 1 | 2 | – |
+  | Clinic | ₹999 | up to 3 | unlimited | ✅ |
+  | Multi-doctor | ₹1,999 | up to 5 | unlimited | ✅ |
+
+  The owner account is never counted. Everything else in Clinix is in every
+  plan.
+- **Paying:** choose a plan and pay in the secure Razorpay window, by card
+  or UPI Autopay. Payments then repeat every month automatically. Clinix
+  never sees your card or bank details. If you choose a plan during the
+  trial, the first charge is on the day the trial ends – you don't lose any
+  trial days.
+- **Changing plan:** the new plan starts when the month you've paid for
+  ends. To move to a smaller plan, first switch off any doctors or staff
+  above its limit (*Staff* page).
+- **Cancelling:** nothing more is charged, and you keep full access until
+  the end of the month you've paid for.
+- **If a payment fails,** Razorpay tries again, and a notice at the top of
+  the page shows the date to sort it out by – you keep full access for 7
+  days. You can also pay straight away with another card or UPI from this
+  page.
+- **If the subscription isn't paid** (7 days after a failed payment, or
+  after the trial or a cancelled plan ends), the clinic becomes
+  **read-only**: every record can still be opened and printed, but nothing
+  new can be added until you subscribe again. Your data is never deleted.
+- Adding a doctor or staff member beyond your plan shows a message asking
+  you to upgrade.
+
 ### WhatsApp messages *(optional)*
 When switched on, patients get WhatsApp messages when an appointment is
 booked, a reminder the day before, when they join the queue and when they
@@ -391,6 +428,7 @@ support, who will give you a temporary password.
   holiday or a day's leave yet – switch that day off for the week, then back
   on. Each doctor has one consultation fee (no separate follow-up fee yet).
 - One login belongs to one clinic.
+- Plan prices are shown before GST.
 - A doctor who also owns the clinic needs a separate doctor account to see
   patients (only doctor accounts appear in the doctor lists).
 

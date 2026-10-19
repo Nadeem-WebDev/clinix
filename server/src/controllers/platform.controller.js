@@ -93,3 +93,12 @@ export async function resetStaffPasswordHandler(req, res, next) {
     return next(err)
   }
 }
+
+export async function setClinicBillingHandler(req, res, next) {
+  try {
+    const billing = await platformService.setClinicBilling(req.platformAdmin, req.params.id, req.body, req.ip)
+    return sendSuccess(res, { message: 'Subscription updated', data: { billing } })
+  } catch (err) {
+    return next(err)
+  }
+}

@@ -227,6 +227,17 @@ Email notifications via **Brevo** (server-side only) - see
 The older `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASSWORD`
 (SMTP) entries in `.env.example` are not used by any code.
 
+Clinic subscriptions via **Razorpay** (server-side only) - see
+[Subscriptions](#subscriptions-razorpay):
+
+| Variable | Purpose |
+|---|---|
+| `BILLING_ENABLED` | Hard switch: only the exact string `true` turns billing on. Anything else: every clinic is free and unlimited, and nothing calls Razorpay. |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | API keys - `rzp_test_...` for test mode, `rzp_live_...` for real payments. The key id is sent to the owner's browser for checkout; the secret never leaves the server. |
+| `RAZORPAY_WEBHOOK_SECRET` | The secret set on the webhook in the Razorpay dashboard. Without it every webhook is refused. |
+| `RAZORPAY_PLAN_STARTER` / `_CLINIC` / `_MULTI` | Razorpay plan ids (`plan_...`), printed by `node server/scripts/create-razorpay-plans.js`. A plan without an id shows "Not available yet". |
+| `RAZORPAY_API_BASE_URL` | Optional; defaults to `https://api.razorpay.com/v1`. |
+
 ## MongoDB setup
 
 Point `MONGODB_URI` at a local `mongod` or a MongoDB Atlas connection
@@ -248,8 +259,8 @@ npm run dev:server      # server only
 ## Testing
 
 ```bash
-npm run test:server    # backend tests (Jest + Supertest) - 282 tests, 24 suites (~6 min: each suite starts an in-memory MongoDB)
-npm run test:client    # frontend tests (Vitest + React Testing Library) - 132 tests, 23 files
+npm run test:server    # backend tests (Jest + Supertest) - 313 tests, 25 suites (~6 min: each suite starts an in-memory MongoDB)
+npm run test:client    # frontend tests (Vitest + React Testing Library) - 147 tests, 25 files
 npm run test:e2e       # full acceptance-workflow E2E (see below)
 ```
 
@@ -575,12 +586,11 @@ Rules for editing it:
 - **Only describe what the app does today.** No customer counts,
   testimonials or compliance claims (no "DPDP compliant"), and nothing
   about features that don't exist.
-- **The pricing is a placeholder.** `PLANS` at the top of `Landing.jsx`
-  holds three illustrative plans (Starter ₹499, Clinic ₹999, Multi-doctor
-  ₹1,999 a month, by number of doctors). The app has no billing or plan
-  limits - sign-up is free and unlimited - and the note under the plans
-  says getting started is free during early access. Replace both once real
-  plans exist.
+- **The plans are the real ones.** `PLANS` at the top of `Landing.jsx`
+  repeats the prices and limits in `server/src/config/plans.js` (Starter
+  ₹499, Clinic ₹999, Multi-doctor ₹1,999 a month) - change both together.
+  The page promises the 14-day free trial (see
+  [Subscriptions](#subscriptions-razorpay)).
 - **Contact buttons come from build-time settings:** `VITE_CONTACT_EMAIL`
   (a `mailto:` button) and `VITE_CONTACT_WHATSAPP` (country code + number;
   any non-digits are dropped; becomes a `wa.me` link with a prefilled
@@ -1161,6 +1171,117 @@ or "BREVO_API_KEY or EMAIL_FROM_ADDRESS is not set"), or `QUEUED` for a
 deliberate skip (switch off, clinic off, unsubscribed, no address). Sending
 never fails the booking, payment or prescription that triggered it.
 
+## Subscriptions (Razorpay)
+
+Clinics pay Clinix monthly through **Razorpay Subscriptions** (card or UPI
+Autopay). Everything is behind `BILLING_ENABLED`: until it is exactly
+`true`, every clinic is free with no limits, the Subscription page says
+"free during early access", and no banner shows.
+
+### Plans
+
+`server/src/config/plans.js` is the one source for prices and limits
+(the landing page repeats them - keep both in step):
+
+| Plan | Price | Doctors | Other staff | WhatsApp & email |
+|---|---|---|---|---|
+| Starter | ₹499/month | 1 | 2 | no |
+| Clinic | ₹999/month | 3 | unlimited | yes |
+| Multi-doctor | ₹1,999/month | 5 | unlimited | yes |
+
+Limits count **active** accounts and never the owner; "other staff" is
+admin + receptionist + nurse. Every other feature is in every plan.
+
+### Lifecycle
+
+- **Trial:** every new clinic gets 14 days of everything (Multi-doctor
+  limits), no card needed (`Clinic.billing.trialEndsAt`, set at
+  registration; a clinic without one trials from `createdAt`).
+- **Subscribing** (owner only, Settings → *Subscription*): the server
+  creates a Razorpay subscription (`POST /billing/subscribe`), Razorpay's
+  checkout pop-up takes the payment or mandate, then
+  `POST /billing/confirm` checks Razorpay's signature
+  (`HMAC-SHA256(payment_id|subscription_id, key secret)`, with OUR
+  subscription id) and reads the new state from Razorpay - never from the
+  browser. **Charging starts when the paid time ends**: subscribing during
+  the trial starts the plan at the trial's end (Razorpay takes a small
+  refundable authorisation now); with nothing paid it starts at once.
+- **Monthly charges** are Razorpay's job; its webhooks keep our copy in
+  step.
+- **Changing plan** starts a new subscription at the end of the paid
+  month, and only once that one is authorised is the old one cancelled
+  (at the end of its month). Razorpay can't edit UPI/e-mandate
+  subscriptions, so it's always "new subscription, cancel the old".
+- **Cancelling** stops at the end of the month already paid for; a plan
+  set to start later is cancelled outright.
+- **A failed charge:** Razorpay retries (status `pending`, then `halted`).
+  The clinic keeps full access with a warning banner for **7 days from the
+  first failure**, then becomes **read-only**.
+- **Trial or paid time over, nothing new:** the same 7-day grace, then
+  read-only.
+- **Read-only** means every record stays readable and printable, but any
+  POST/PUT/PATCH/DELETE answers **402 `SUBSCRIPTION_INACTIVE`** - except
+  sign-in/out and password changes, `/billing/*` (so the owner can always
+  pay), and switching staff accounts **off** (to fit a smaller plan). It's
+  enforced in `middleware/authenticate.js`. WhatsApp/email stop too.
+
+### Limits in practice
+
+- Adding a doctor or staff account, or switching one back on, past the
+  plan's limit → 403 `PLAN_LIMIT` ("Your Starter plan includes 1 doctor.
+  Upgrade your plan…").
+- A smaller plan can only be chosen once the clinic fits it (409
+  `PLAN_TOO_SMALL`) - no account is ever switched off automatically.
+- On Starter, turning WhatsApp or email notifications on in Settings is
+  refused, and any that were on are skipped when sending (logged as "not
+  included in the clinic's plan").
+
+### What's where
+
+- `services/billing.service.js` - `resolveBilling()` turns the clinic and
+  its subscriptions into `status` (trialing / active / cancelling / manual /
+  past_due / expired / free) and `access` (full / grace / readonly); plus
+  subscribe, confirm, cancel, webhook handling and the limit checks.
+- `models/ClinicSubscription.js` - one row per Razorpay subscription,
+  holding Razorpay's own status. `models/BillingEvent.js` - each webhook
+  event id applied once (Razorpay can deliver twice).
+- `services/razorpayClient.js` - the only code that talks to Razorpay
+  (plain REST, Basic auth).
+- `POST /api/v1/razorpay/webhook` - unauthenticated, signature-checked
+  (see [Security notes](#security-notes)). Events can arrive out of order:
+  each row keeps the time of the newest event applied and ignores older
+  ones.
+- Client: `pages/Subscription.jsx` (`/settings/subscription`, owner only),
+  `components/BillingBanner.jsx` (trial's last week, failed payment,
+  ended, read-only - everyone sees it, only the owner gets the link),
+  `utils/razorpayCheckout.js` (loads Razorpay's script only when an owner
+  subscribes). The CSP allows `checkout.razorpay.com` and `cdn.razorpay.com` scripts,
+  `api.razorpay.com` / `checkout.razorpay.com` frames and
+  `*.razorpay.com` connections and images.
+- **Platform panel** (clinic page → *Subscription*): see the state and
+  every Razorpay subscription, **set the trial end**, or record a plan
+  **paid outside Razorpay** (bank transfer) or given free, until a date
+  (`PATCH /platform/clinics/:id/billing`, recorded in the platform log).
+
+### Setting it up
+
+1. Razorpay dashboard: complete KYC, enable **Subscriptions**. Live mode
+   needs Terms, Privacy, Refund/Cancellation and Contact pages on the site
+   first.
+2. Create the plans: `node server/scripts/create-razorpay-plans.js`
+   (`--dry-run` first). It prints `RAZORPAY_PLAN_*` lines for `.env` and
+   the Render dashboard. Test and live mode need separate runs.
+3. Add a webhook in Razorpay (Account & Settings → Webhooks):
+   `https://<your site>/api/v1/razorpay/webhook`, a secret
+   (`RAZORPAY_WEBHOOK_SECRET`), and the `subscription.*` events
+   (authenticated, activated, charged, pending, halted, cancelled,
+   completed, updated, paused, resumed). Razorpay doesn't accept
+   `localhost` webhook URLs - test on the deployed site with test keys.
+4. Set `BILLING_ENABLED=true` and redeploy.
+5. In test mode, subscribe with card `4718 6091 0820 4366` (any CVV, any
+   future date); the Razorpay dashboard can then simulate the next
+   charge succeeding or failing.
+
 ## Demo credentials
 
 Load a demo clinic with sample data:
@@ -1236,10 +1357,15 @@ receptionists and nurses from the Staff page.
   collapsing the login rate limiter into one shared bucket for everyone
   behind that proxy. Trusting exactly one hop reads the real client IP from
   `X-Forwarded-For` without blindly trusting an arbitrary spoofable chain.
-- **Three unauthenticated routes exist, and only three** (besides
+- **Four unauthenticated routes exist, and only four** (besides
   `/health` and `/keep-alive`, which return no data at all):
-  `GET /api/v1/public/clinics/:slug/queue`, `/api/v1/whatsapp/webhook`
-  and `POST /api/v1/public/email/unsubscribe`. All are rate-limited. The
+  `GET /api/v1/public/clinics/:slug/queue`, `/api/v1/whatsapp/webhook`,
+  `POST /api/v1/public/email/unsubscribe` and
+  `POST /api/v1/razorpay/webhook`. All are rate-limited. The Razorpay
+  webhook checks `X-Razorpay-Signature` (HMAC of the raw body with
+  `RAZORPAY_WEBHOOK_SECRET`) before reading anything, refuses everything
+  when that secret is unset, only updates subscriptions this app created,
+  and returns no data. The
   public queue derives its tenant from a validated `:slug` (never from
   request input) and returns a strict field allow-list; the webhook
   verifies Meta's `X-Hub-Signature-256` against `WHATSAPP_APP_SECRET`
@@ -1429,6 +1555,17 @@ Carried over from Phase 10:
 - No calendar/grid view for appointments - only the List view (with
   Today/Tomorrow/Upcoming filters) from the spec's "Calendar view, List
   view" requirement; a visual calendar is a reasonable later addition.
+- **Subscriptions have only been tested against a mocked Razorpay** (the
+  server and client test suites), not yet end to end in Razorpay test mode
+  - plans, a real checkout, real webhooks. Do that on the deployed site
+  before turning billing on (see [Setting it up](#setting-it-up)).
+- Subscription prices are shown before GST and no GST is added or
+  invoiced; Razorpay's own payment receipts are the only invoices.
+- No proration: changing plan takes effect at the end of the paid month,
+  never mid-month. No pause, no yearly plans, no coupons.
+- A failed card can't be swapped on the existing subscription from the
+  app; *Pay now* starts a fresh subscription (the failed one is cancelled
+  once the new one is authorised).
 - Doctor working hours are a repeating weekly timetable only: no holidays
   or leave dates yet (book around them, or switch the day off and back), no
   per-doctor appointment length, and at most two sessions a day. Booking
@@ -1603,6 +1740,14 @@ GET  /api/v1/public/clinics/:slug/queue   NO AUTH: masked live queue for the wai
 POST /api/v1/public/email/unsubscribe     NO AUTH: { p, t } from an email's unsubscribe link; HMAC-checked, rate-limited
 GET  /api/v1/whatsapp/webhook             NO AUTH: Meta's subscription handshake
 POST /api/v1/whatsapp/webhook             NO AUTH: delivery receipts + inbound replies, signature-verified
+
+POST /api/v1/razorpay/webhook             NO AUTH: Razorpay subscription events, signature-verified, each event id applied once
+
+GET  /api/v1/billing                any authenticated user: subscription state, plans, usage (for the banner)
+POST /api/v1/billing/subscribe      owner only: { plan } -> Razorpay subscription for checkout (409 PLAN_TOO_SMALL / ALREADY_SUBSCRIBED)
+POST /api/v1/billing/confirm        owner only: checkout's { razorpay_payment_id, razorpay_subscription_id, razorpay_signature }
+POST /api/v1/billing/cancel         owner only: stop at the end of the paid month
+PATCH /api/v1/platform/clinics/:id/billing   platform admin: { trialEndsAt, manualPlan, manualPaidUntil, manualNote } (null clears)
 
 GET  /api/v1/health
 GET  /api/v1/keep-alive             NO AUTH: no-op for keeping a free instance awake (no DB, not logged)

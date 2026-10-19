@@ -28,9 +28,9 @@ import { useAuth } from '../context/AuthContext.jsx'
 // /login. Everything here describes features that exist today; keep it that
 // way when editing (README "Landing page").
 
-// PLACEHOLDER PRICING - illustrative plans, not real prices yet. There is no
-// billing in the app: signing up is free and unlimited today. Change these
-// (and the note under the plans) once real plans exist.
+// The subscription plans. Prices and limits must match
+// server/src/config/plans.js, which is what the app actually charges and
+// enforces (README "Subscriptions").
 const PLANS = [
   {
     name: 'Starter',
@@ -41,6 +41,7 @@ const PLANS = [
       '1 doctor + 2 staff accounts',
       'Patients, appointments and OPD queue',
       'Prescriptions and bills as PDF',
+      'Waiting-room queue screen',
       'Reports with Excel export',
     ],
   },
@@ -54,7 +55,6 @@ const PLANS = [
       'Up to 3 doctors, unlimited staff',
       'Everything in Starter',
       'WhatsApp and email reminders',
-      'Waiting-room queue screen',
     ],
   },
   {
@@ -365,7 +365,7 @@ export default function Landing() {
               ))}
             </div>
             <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">
-              Prices are per clinic, before GST. Getting started is free while Clinix is in early access.
+              Prices are per clinic, before GST. Every clinic starts with a 14-day free trial of everything - no card needed.
             </p>
           </div>
         </section>
@@ -550,7 +550,7 @@ function Hero() {
             </a>
           </div>
           <p className="mt-4 text-sm text-gray-500 motion-safe:animate-fade-up motion-safe:[animation-delay:400ms] dark:text-gray-400">
-            Free to get started during early access. No card needed.
+            14-day free trial. No card needed.
           </p>
         </div>
         <ProductPreview />

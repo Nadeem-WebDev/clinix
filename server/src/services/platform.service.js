@@ -12,6 +12,7 @@ import { Invoice } from '../models/Invoice.js'
 import { AuditLog } from '../models/AuditLog.js'
 import { ApiError } from '../utils/ApiError.js'
 import { writeAuditLog } from '../utils/audit.js'
+import { getPlatformBillingView, updateBillingOverride } from './billing.service.js'
 
 // The platform admin panel: how the people running Clinix see and support
 // every clinic. It deliberately exposes counts and account details only -
@@ -172,6 +173,7 @@ export async function getClinic(clinicId) {
     ])
 
   return {
+    billing: await getPlatformBillingView(id),
     clinic: {
       _id: clinic._id,
       name: clinic.name,
@@ -252,4 +254,17 @@ export async function resetStaffPassword(admin, clinicId, userId, ipAddress) {
     metadata: { by: 'Clinix support' },
   })
   return { user: { _id: user._id, name: user.name, email: user.email }, temporaryPassword }
+}
+
+export async function setClinicBilling(admin, clinicId, fields, ipAddress) {
+  const clinic = await findClinic(clinicId)
+  await updateBillingOverride(clinic._id, fields)
+  await recordPlatformAction({
+    admin,
+    action: 'CLINIC_BILLING_UPDATED',
+    clinicId: clinic._id,
+    metadata: fields,
+    ipAddress,
+  })
+  return getPlatformBillingView(clinic._id)
 }

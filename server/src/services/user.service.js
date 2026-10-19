@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { User } from '../models/User.js'
 import { ApiError } from '../utils/ApiError.js'
+import { assertCanAddAccount } from './billing.service.js'
 
 // Every function here takes clinicId as an explicit argument supplied by
 // the controller from req.clinicId (which itself comes only from the
@@ -25,6 +26,7 @@ export async function createStaff(clinicId, { name, email, password, role }, req
   if (existing) {
     throw ApiError.conflict('An account with this email already exists', 'EMAIL_TAKEN')
   }
+  await assertCanAddAccount(clinicId, role)
 
   const passwordHash = await User.hashPassword(password)
   return User.create({ clinicId, name, email, passwordHash, role })
@@ -42,6 +44,7 @@ export async function setStaffActive(clinicId, userId, active) {
   if (['owner', 'admin'].includes(user.role) && !active) {
     throw ApiError.badRequest('Cannot disable an owner or admin account', 'CANNOT_DISABLE_ADMIN')
   }
+  if (active && !user.active) await assertCanAddAccount(clinicId, user.role)
   user.active = active
   await user.save()
   return user

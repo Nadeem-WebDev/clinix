@@ -2,6 +2,7 @@ import { Clinic, CLINIC_SUSPENDED_MESSAGE } from '../models/Clinic.js'
 import { User } from '../models/User.js'
 import { ApiError } from '../utils/ApiError.js'
 import { generateUniqueSlug } from './clinic.service.js'
+import { env } from '../config/env.js'
 
 // Onboards a brand-new clinic + its first user in one step. This is the
 // SaaS signup flow (section 46 acceptance criteria: "Admin creates clinic").
@@ -18,7 +19,12 @@ export async function registerClinic({ clinicName, adminName, email, password })
   // is a public identifier and letting a registrant choose it would let
   // them impersonate another clinic's queue URL.
   const slug = await generateUniqueSlug(clinicName)
-  const clinic = await Clinic.create({ name: clinicName, slug })
+  // Every new clinic starts on a free trial (README "Subscriptions").
+  const clinic = await Clinic.create({
+    name: clinicName,
+    slug,
+    billing: { trialEndsAt: new Date(Date.now() + env.billing.trialDays * 24 * 60 * 60 * 1000) },
+  })
 
   const passwordHash = await User.hashPassword(password)
   const owner = await User.create({

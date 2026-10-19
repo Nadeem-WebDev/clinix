@@ -16,6 +16,8 @@ import clinicRoutes from './clinic.routes.js'
 import publicRoutes from './public.routes.js'
 import whatsappWebhookRoutes from './whatsappWebhook.routes.js'
 import platformRoutes from './platform.routes.js'
+import billingRoutes from './billing.routes.js'
+import razorpayWebhookRoutes from './razorpayWebhook.routes.js'
 
 const router = Router()
 
@@ -35,6 +37,8 @@ router.use('/reports', reportRoutes)
 router.use('/documents', documentRoutes)
 router.use('/audit-logs', auditLogRoutes)
 router.use('/clinics', clinicRoutes)
+// The clinic's own Clinix subscription (Razorpay) - see billing.routes.js.
+router.use('/billing', billingRoutes)
 
 // Unauthenticated - see public.routes.js for why, and what that costs.
 router.use('/public', publicRoutes)
@@ -42,6 +46,9 @@ router.use('/public', publicRoutes)
 // Unauthenticated, called by Meta rather than by a browser - see
 // whatsappWebhook.routes.js.
 router.use('/whatsapp', whatsappWebhookRoutes)
+
+// Unauthenticated, called by Razorpay - see razorpayWebhook.routes.js.
+router.use('/razorpay', razorpayWebhookRoutes)
 
 // Clinix's own admin panel - its own login, nothing clinic-scoped.
 router.use('/platform', platformRoutes)

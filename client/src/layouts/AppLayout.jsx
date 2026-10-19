@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getClinicSettings } from '../api/clinic.js'
 import Sidebar from './Sidebar.jsx'
 import Header from './Header.jsx'
+import BillingBanner from '../components/BillingBanner.jsx'
 
 export default function AppLayout() {
   const [navOpen, setNavOpen] = useState(false)
@@ -25,6 +26,7 @@ export default function AppLayout() {
           onMenuClick={() => setNavOpen(true)}
           menuButtonExpanded={navOpen}
         />
+        <BillingBanner />
         {/* relative keeps sr-only (absolute) inputs inside this scroll area;
             otherwise they stretch the page and phones get a second scroll. */}
         <main className="relative flex-1 overflow-y-auto p-4 sm:p-6">

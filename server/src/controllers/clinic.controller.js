@@ -1,4 +1,5 @@
 import * as clinicService from '../services/clinic.service.js'
+import { assertMessagingAllowed } from '../services/billing.service.js'
 import { sendSuccess } from '../utils/ApiResponse.js'
 import { writeAuditLog } from '../utils/audit.js'
 
@@ -13,6 +14,11 @@ export async function getClinicSettingsHandler(req, res, next) {
 
 export async function updateClinicSettingsHandler(req, res, next) {
   try {
+    // Turning notifications ON needs a plan that includes them; turning
+    // them off is always allowed.
+    if (req.body.whatsappEnabled === true || req.body.emailEnabled === true) {
+      await assertMessagingAllowed(req.clinicId)
+    }
     const clinic = await clinicService.updateClinicSettings(req.clinicId, req.body)
 
     await writeAuditLog({

@@ -18,6 +18,7 @@ import {
   queueUpdateEmail,
   documentReadyEmail,
 } from './emailTemplates.js'
+import * as billing from './billing.service.js'
 
 // Outbound notification emails, via Brevo - the email twin of
 // whatsapp.service.js, sent at the same moments with the same wording.
@@ -122,6 +123,10 @@ export async function sendNotificationEmail({ clinicId, patientId, kind, compose
     if (!clinic.emailEnabled) {
       logSkip('clinic has email disabled', { kind, clinicId })
       return recordMessage({ ...base, status: 'QUEUED', errorMessage: 'Not sent: email is disabled for this clinic' })
+    }
+    if (!(await billing.messagingAllowed(clinicId))) {
+      logSkip("not included in the clinic's plan", { kind, clinicId })
+      return recordMessage({ ...base, status: 'QUEUED', errorMessage: "Not sent: email isn't included in the clinic's plan, or the subscription has lapsed" })
     }
     if (patient.emailOptIn === false) {
       logSkip('patient unsubscribed', { kind, clinicId, patientId })

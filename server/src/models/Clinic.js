@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { SLUG_PATTERN } from '../utils/slug.js'
 import { DEFAULT_TIMEZONE, isValidTimeZone } from '../utils/dateRange.js'
+import { PLAN_CODES } from '../config/plans.js'
 
 export const DAYS_OF_WEEK = [
   'monday',
@@ -93,6 +94,17 @@ const clinicSchema = new mongoose.Schema(
     active: { type: Boolean, default: true },
     suspendedAt: { type: Date },
     suspendedReason: { type: String, trim: true },
+    // Subscription facts that aren't a Razorpay subscription (those are
+    // ClinicSubscription rows). trialEndsAt is set at registration; a clinic
+    // without one is treated as trialling from createdAt. The manual fields
+    // are set by a platform admin: a clinic that pays by bank transfer, or
+    // is given a free plan, has full access on manualPlan until manualPaidUntil.
+    billing: {
+      trialEndsAt: { type: Date },
+      manualPlan: { type: String, enum: [...PLAN_CODES, null] },
+      manualPaidUntil: { type: Date },
+      manualNote: { type: String, trim: true, maxlength: 300 },
+    },
   },
   { timestamps: true },
 )

@@ -35,8 +35,18 @@ export function createApp({ serveClient = env.serveClient, clientDistDir = env.c
     helmet({
       contentSecurityPolicy: {
         directives: {
-          imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
-          scriptSrc: ["'self'", ...(client ? inlineScriptHashes(client.html) : [])],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://*.razorpay.com'],
+          // Razorpay's checkout (Settings -> Subscription): its script (which
+          // pulls a fraud-check script from cdn.razorpay.com), the pop-up
+          // frame it opens, and the calls those scripts make.
+          scriptSrc: [
+            "'self'",
+            'https://checkout.razorpay.com',
+            'https://cdn.razorpay.com',
+            ...(client ? inlineScriptHashes(client.html) : []),
+          ],
+          frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
+          connectSrc: ["'self'", 'https://*.razorpay.com'],
           // Helmet adds upgrade-insecure-requests by default. Production is
           // always behind HTTPS, but over plain http (a local production
           // build, or a phone on the LAN at http://192.168.x.x) Safari obeys
@@ -56,12 +66,15 @@ export function createApp({ serveClient = env.serveClient, clientDistDir = env.c
   app.use(
     express.json({
       limit: '1mb',
-      // Meta signs the webhook body byte-for-byte, so verifying
-      // X-Hub-Signature-256 needs the bytes as received - re-serializing
-      // the parsed object would produce a different signature. Captured
-      // only for the webhook path, so no other request pays the memory.
+      // Meta and Razorpay sign the webhook body byte-for-byte, so checking
+      // the signature needs the bytes as received - re-serializing the
+      // parsed object would produce a different signature. Captured only
+      // for the webhook paths, so no other request pays the memory.
       verify: (req, res, buf) => {
-        if (req.originalUrl?.startsWith('/api/v1/whatsapp/webhook')) {
+        if (
+          req.originalUrl?.startsWith('/api/v1/whatsapp/webhook') ||
+          req.originalUrl?.startsWith('/api/v1/razorpay/webhook')
+        ) {
           req.rawBody = buf
         }
       },

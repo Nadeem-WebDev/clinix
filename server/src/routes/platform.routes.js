@@ -9,11 +9,12 @@ import {
   suspendClinicHandler,
   unsuspendClinicHandler,
   resetStaffPasswordHandler,
+  setClinicBillingHandler,
 } from '../controllers/platform.controller.js'
 import { authenticatePlatform } from '../middleware/authenticatePlatform.js'
 import { authRateLimiter } from '../middleware/rateLimiter.js'
 import { validateBody } from '../middleware/validate.js'
-import { platformLoginSchema, suspendClinicSchema } from '../validators/platform.validators.js'
+import { platformLoginSchema, suspendClinicSchema, billingOverrideSchema } from '../validators/platform.validators.js'
 
 // Clinix's own admin panel (/platform in the app). Its session is separate
 // from every clinic's - see authenticatePlatform and utils/jwt.js.
@@ -31,5 +32,6 @@ router.get('/clinics/:id', getClinicHandler)
 router.post('/clinics/:id/suspend', validateBody(suspendClinicSchema), suspendClinicHandler)
 router.post('/clinics/:id/unsuspend', unsuspendClinicHandler)
 router.post('/clinics/:id/staff/:userId/reset-password', resetStaffPasswordHandler)
+router.patch('/clinics/:id/billing', validateBody(billingOverrideSchema), setClinicBillingHandler)
 
 export default router

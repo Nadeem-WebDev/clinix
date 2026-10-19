@@ -120,7 +120,7 @@ Gotchas:
   > innerWidth`, any `overflow-x: auto` box with `scrollWidth > clientWidth`,
   and (in the app shell) `scrollHeight > innerHeight`.
 
-## Open items (as of 2026-10-14)
+## Open items (as of 2026-10-19)
 
 - `npm audit`: the critical `proxy-addr` advisory is fixed (`npm audit fix`,
   2026-10-14, lock file only). Left: 2 moderate `react-router` findings in
@@ -143,6 +143,14 @@ Gotchas:
   bookable any time on purpose - clinic opening hours are not enforced, so
   existing clinics see no new warnings. Not built: holidays/leave dates,
   follow-up fee, per-doctor slot length.
-- Suggested next modules: subscriptions/payments
-  (Razorpay), forgot password by email, doctor leave/holidays,
+- Razorpay subscriptions are built (README "Subscriptions (Razorpay)")
+  behind `BILLING_ENABLED` (off by default), tested only against a mocked
+  Razorpay. `.env` has rzp_test_ keys; the RAZORPAY_PLAN_* ids and
+  RAZORPAY_WEBHOOK_SECRET are still empty - the owner runs
+  `node server/scripts/create-razorpay-plans.js` (creating plans in their
+  Razorpay account was refused to the agent by the permission check) and
+  adds the webhook in Razorpay. End-to-end test on the deployed site in
+  test mode is still to do. Never call Razorpay with live keys.
+- Suggested next modules: legal pages (Terms/Privacy/Refund/Contact,
+  needed for Razorpay live mode), forgot password by email, doctor leave/holidays,
   medicine favourites, lab tests, calendar view, GST settings.
