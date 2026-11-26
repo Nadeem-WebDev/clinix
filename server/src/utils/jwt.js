@@ -54,7 +54,7 @@ function baseCookieOptions() {
     // is both sufficient and safer - and it is a first-party cookie, which
     // browsers that block third-party cookies (Safari) still send.
     //
-    // In the split deploy (frontend on Vercel, API on Render) every API
+    // In a split deploy (frontend and API on separate hosts) every API
     // call is genuinely cross-site, and a Lax cookie is never sent on the
     // XHR/fetch calls auth depends on - so that setup needs SameSite=None
     // (which requires Secure, already true above). Local dev keeps Lax:

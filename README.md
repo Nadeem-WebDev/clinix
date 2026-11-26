@@ -168,12 +168,22 @@ Not yet tried on a physical iPhone.
 
 ## Setup
 
-Requires Node 18+ and a MongoDB instance (local or Atlas).
+Requires Node 20+ (developed on Windows with Node 26 / npm 12) and a
+MongoDB instance (local or Atlas).
 
 ```bash
 npm install                 # installs client + server workspaces
-cp .env.example .env        # fill in real values
+cp .env.example .env        # fill in real values (PowerShell: Copy-Item .env.example .env)
 ```
+
+npm 12 blocks dependencies' install scripts by default and lists them
+after `npm install`. None of them is needed to develop, test or deploy:
+`esbuild` works without its postinstall check, `mongodb-memory-server`
+downloads its `mongod` on first use, and Puppeteer's Chrome (E2E only)
+is installed with `npx puppeteer browsers install chrome`.
+
+Line endings are LF everywhere; `.gitattributes` keeps them LF on Windows
+even with Git's default `core.autocrlf=true`.
 
 ## Environment variables
 
@@ -209,7 +219,7 @@ Keep-alive for Render's free plan (server-side only) - see
 
 | Variable | Purpose |
 |---|---|
-| `KEEP_ALIVE_ENABLED` | Only the exact string `true` starts the self-ping of `GET /api/v1/keep-alive`. Off locally; `render.yaml` turns it on for the free plan. |
+| `KEEP_ALIVE_ENABLED` | Only the exact string `true` starts the self-ping of `GET /api/v1/keep-alive`. Off locally; on for the Render free plan (set on the service). |
 | `KEEP_ALIVE_URL` | What to ping. Defaults to `<RENDER_EXTERNAL_URL>/api/v1/keep-alive` on Render. |
 | `KEEP_ALIVE_INTERVAL_MINUTES` | Minutes between pings. Defaults to `13`; kept between 1 and 14 (Render sleeps after 15). |
 
@@ -223,9 +233,6 @@ Email notifications via **Brevo** (server-side only) - see
 | `EMAIL_FROM_ADDRESS` | The "From" address; must be a sender or domain verified in Brevo. |
 | `EMAIL_FROM_NAME` | Shown after the clinic's name in the From line ("Sunrise Family Clinic via Clinix"). Defaults to `Clinix`. |
 | `BREVO_API_BASE_URL` | Optional; defaults to `https://api.brevo.com/v3`. |
-
-The older `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASSWORD`
-(SMTP) entries in `.env.example` are not used by any code.
 
 Clinic subscriptions via **Razorpay** (server-side only) - see
 [Subscriptions](#subscriptions-razorpay):
@@ -259,10 +266,21 @@ npm run dev:server      # server only
 ## Testing
 
 ```bash
-npm run test:server    # backend tests (Jest + Supertest) - 313 tests, 25 suites (~6 min: each suite starts an in-memory MongoDB)
+npm run test:server    # backend tests (Jest + Supertest) - 313 tests, 25 suites (~2-6 min: each suite starts an in-memory MongoDB)
 npm run test:client    # frontend tests (Vitest + React Testing Library) - 147 tests, 25 files
 npm run test:e2e       # full acceptance-workflow E2E (see below)
 ```
+
+Run the two suites one after the other, not at once: under that load the
+in-memory MongoDB can miss its 10s start-up limit and several Vitest tests
+their 5s timeout, which fails them spuriously.
+
+The server suite never uses the outside services configured in your
+`.env`: `server/tests/setupEnv.js` (Jest `setupFiles`) pins email,
+WhatsApp, Razorpay, Cloudinary and keep-alive off, and `MONGODB_URI` to an
+unusable address, before `.env` loads (dotenv doesn't overwrite variables
+that are already set). Tests that need a service turn it on through `env`
+and mock its client.
 
 `test:e2e` (`e2e/acceptance.mjs`) drives the real client + server through
 one continuous run tying every phase together: clinic/admin signup, a
@@ -276,14 +294,12 @@ its own server + Vite dev server on non-default ports, so it never touches
 your real dev database or dev servers. Patient-document upload is skipped
 (not failed) when Cloudinary isn't configured, matching the note below.
 
-**Not yet verified in this environment**: Puppeteer's bundled Chromium
-needs system shared libraries (`libnspr4`, `libnss3`, etc.) this machine
-doesn't have installed, and installing them needs `sudo apt-get install`
-on the host - out of scope for an app-level change here. The script was
-written and carefully checked against the actual component source
-(selectors, button labels, status text) but has not actually been run
-end-to-end; expect to debug a selector or two the first time it runs
-somewhere those libraries are present (a normal dev machine, or CI).
+**Not yet run end-to-end.** It was written on a Linux server whose
+Chromium lacked system libraries; it was checked against the component
+source (selectors, button labels, status text) but never executed, so
+expect to debug a selector or two the first time. On Windows, install
+Puppeteer's Chrome once with `npx puppeteer browsers install chrome` (npm
+12 blocks Puppeteer's own download script).
 
 ## Linting
 
@@ -300,13 +316,13 @@ npm run build   # production client build -> client/dist (alias for build:client
 
 ## Production Deployment
 
-**Recommended: one Render web service** that serves both the API and the
-built React app from the same origin, defined in [`render.yaml`](./render.yaml)
-(a Render Blueprint). One URL, one deploy, no CORS to configure, and the
-login cookie is first-party (`SameSite=Lax`) - so it still works in
-browsers that block third-party cookies, such as Safari. A split
-Vercel + Render setup is still supported, see
-[the alternative below](#alternative-frontend-on-vercel-api-on-render).
+Live at **https://clinix-jywo.onrender.com/** - **one Render web service**
+that serves both the API and the built React app from the same origin. One
+URL, one deploy, no CORS to configure, and the login cookie is first-party
+(`SameSite=Lax`) - so it still works in browsers that block third-party
+cookies, such as Safari. The service is configured in the Render dashboard
+(the repo no longer has a `render.yaml` Blueprint or a `vercel.json`); the
+settings it needs are listed below.
 
 ### 1. Database - MongoDB Atlas
 
@@ -317,37 +333,38 @@ Vercel + Render setup is still supported, see
 3. Copy the connection string - this is `MONGODB_URI` below. Use a
    database dedicated to production, not the one you develop against.
 
-### 2. Deploy the Blueprint
+### 2. The Render web service
 
-1. Push this repo to GitHub (Render deploys from the repo, so
-   `render.yaml` must be committed).
-2. Render dashboard → **New → Blueprint** → pick the repo.
-3. Render prompts for the values marked `sync: false`:
+Render deploys from the GitHub repo (`main`) on every push. To recreate
+the service: Render dashboard → **New → Web Service** → pick the repo
+(root directory: the repo root), then use these settings:
 
-   | Variable | Value |
-   |---|---|
-   | `MONGODB_URI` | The Atlas connection string from step 1. **Required** - the app refuses to boot in production without it. |
-   | `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | From your Cloudinary dashboard. Needed for patient documents and clinic logos. |
+| Setting | Value | Why |
+|---|---|---|
+| Build | `npm ci --include=dev && npm run build && npm prune --omit=dev` | `NODE_ENV=production` makes `npm ci` skip devDependencies, but Vite and Tailwind (client devDependencies) are needed to build - so include them, build `client/dist`, then prune. |
+| Start | `npm run start --workspace server` | `node src/server.js` |
+| Health check path | `/api/v1/health` | Render waits for it before switching traffic. |
 
-4. **Apply.** Render then builds and starts the service. Everything else
-   is already set by `render.yaml`:
+Environment variables:
 
-   | Setting | Value | Why |
-   |---|---|---|
-   | Build | `npm ci --include=dev && npm run build && npm prune --omit=dev` | `NODE_ENV=production` makes `npm ci` skip devDependencies, but Vite and Tailwind (client devDependencies) are needed to build - so include them, build `client/dist`, then prune. |
-   | Start | `npm run start --workspace server` | `node src/server.js` |
-   | Health check | `/api/v1/health` | Render waits for it before switching traffic. |
-   | `NODE_VERSION` | `20` | |
-   | `NODE_ENV` | `production` | Secure cookies, trust proxy, generic error messages. |
-   | `SERVE_CLIENT` | `true` | Express serves `client/dist` (see below). |
-   | `JWT_SECRET` | generated by Render | |
-   | `PUPPETEER_SKIP_DOWNLOAD` | `true` | Puppeteer is only for the E2E script; skips a ~170MB Chrome download on every build. |
-   | `WHATSAPP_ENABLED` | `false` | Until Meta is set up - see [WhatsApp setup](#whatsapp-setup). |
-   | `KEEP_ALIVE_ENABLED` | `true` | Self-ping so the free instance never sleeps - see [Things to know](#things-to-know). |
+| Variable | Value | Why |
+|---|---|---|
+| `MONGODB_URI` | The Atlas connection string from step 1 | **Required** - the app refuses to boot in production without it. |
+| `JWT_SECRET` | A long random string (Render's *Generate* button) | |
+| `JWT_EXPIRES_IN` | `7d` | |
+| `NODE_VERSION` | e.g. `24` | Render's Node version; pick a supported LTS. |
+| `NODE_ENV` | `production` | Secure cookies, trust proxy, generic error messages. |
+| `SERVE_CLIENT` | `true` | Express serves `client/dist` (see below). |
+| `PUPPETEER_SKIP_DOWNLOAD` | `true` | Puppeteer is only for the E2E script; skips a ~170MB Chrome download on every build. |
+| `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | From your Cloudinary dashboard | Needed for patient documents and clinic logos. |
+| `WHATSAPP_ENABLED` | `false` | Until Meta is set up - see [WhatsApp setup](#whatsapp-setup). |
+| `KEEP_ALIVE_ENABLED` | `true` | Self-ping so the free instance never sleeps - see [Things to know](#things-to-know). |
 
-   `PORT`, `CORS_ORIGIN` and `PUBLIC_APP_URL` are not set: Render injects
-   `PORT`, and the other two fall back to `RENDER_EXTERNAL_URL` (the
-   service's own `https://<name>.onrender.com` address, set by Render).
+`PORT`, `CORS_ORIGIN` and `PUBLIC_APP_URL` are not set: Render injects
+`PORT`, and the other two fall back to `RENDER_EXTERNAL_URL` (the
+service's own `https://clinix-jywo.onrender.com` address, set by Render).
+`VITE_*` variables (landing-page contact buttons, `VITE_SITE_URL`) are read
+at build time, so changing one needs a redeploy.
 
 What `SERVE_CLIENT=true` does (`server/src/middleware/serveClient.js`):
 API routes are mounted first and always win; `/assets/*` (content-hashed
@@ -366,8 +383,8 @@ opens, and the browser console shows no CSP errors. Then upload a clinic
 logo once to confirm Cloudinary is wired.
 
 This exact flow was rehearsed before this setup was committed: a clean
-copy of the repo (no `.env`), built and started with the Blueprint's
-commands in a `node:20` container with `NODE_ENV=production`, then driven
+copy of the repo (no `.env`), built and started with the build and start
+commands above in a `node:20` container with `NODE_ENV=production`, then driven
 in headless Chrome (register, cookie flags, deep-link refresh, a
 same-origin API write, the theme script under the CSP, the public queue
 logged out). Nothing was deployed to Render itself.
@@ -377,7 +394,7 @@ logged out). Nothing was deployed to Render itself.
 - **Free plan:** the instance sleeps after ~15 minutes without traffic
   (the next request takes ~30-60s), and the in-process reminder cron does
   not run while asleep. **Keep-alive** prevents that: with
-  `KEEP_ALIVE_ENABLED=true` (set in `render.yaml`) the server calls its own
+  `KEEP_ALIVE_ENABLED=true` (set on the Render service) the server calls its own
   `GET /api/v1/keep-alive` - through its public `RENDER_EXTERNAL_URL`, so
   Render counts it as traffic - every 13 minutes
   (`server/src/jobs/keepAlive.job.js`). The endpoint does no database work,
@@ -396,24 +413,13 @@ logged out). Nothing was deployed to Render itself.
 - **One instance:** the reminder cron and the PDF logo cache live in the
   server process; see [Known limitations](#known-limitations) before
   scaling to more than one instance.
-
-### Alternative: frontend on Vercel, API on Render
-
-The committed `vercel.json` still builds the client for Vercel. In that
-setup:
-
-- **Render** (web service, root directory `server`, build `npm install`,
-  start `npm start`): `NODE_ENV=production`, `MONGODB_URI`, `JWT_SECRET`,
-  `CLOUDINARY_*`, `CORS_ORIGIN` = the exact Vercel URL. Leave
-  `SERVE_CLIENT` unset.
-- **Vercel** (repo root): `VITE_API_URL` = `<Render URL>/api/v1`, baked in
-  at build time, so changing it means redeploying.
-- Deploy the API first with a placeholder `CORS_ORIGIN`, then Vercel, then
-  set the real `CORS_ORIGIN`. Every API call is cross-site here, so the auth
-  cookie is `SameSite=None; Secure` (`server/src/utils/jwt.js`) - which
-  browsers that block third-party cookies may refuse. If login seems to
-  succeed but the next request looks logged out, check `CORS_ORIGIN`
-  matches the Vercel URL exactly, then the browser's cookie settings.
+- **Split deploy (not used):** the code still supports serving the client
+  from a different host than the API - set `VITE_API_URL` to
+  `<API URL>/api/v1` at build time, `CORS_ORIGIN` to the exact client URL
+  on the server, and leave `SERVE_CLIENT` unset. Every API call is then
+  cross-site, so the auth cookie becomes `SameSite=None; Secure`
+  (`server/src/utils/jwt.js`), which browsers that block third-party
+  cookies may refuse.
 
 ## Reports
 
@@ -596,8 +602,8 @@ Rules for editing it:
   any non-digits are dropped; becomes a `wa.me` link with a prefilled
   message). Each button, and the header's *Contact* link, only appears when
   set. They are `VITE_` variables, so they are baked in at build time -
-  on Render, set them in the dashboard (`render.yaml` lists them) and
-  redeploy to change them.
+  on Render, set them on the service's Environment page and redeploy to
+  change them.
 - Mobile-first like the rest of the app: checked in Chromium at 320, 375,
   390, 768, 1024 and 1280px in light and dark, and in WebKit on iPhone SE
   and iPhone 14 - no sideways scroll, no tap target under 24x24px.
@@ -744,7 +750,7 @@ charge and when they work. Each doctor account has an optional profile:
   URL (`fetchDoctorSignature` in `client/src/api/staff.js`), not as a plain
   `<img src>` - Helmet's `Cross-Origin-Resource-Policy: same-origin` would
   block that whenever the app and API are on different origins (the local
-  two-server setup, the Vercel + Render split).
+  two-server setup, a split deploy).
   Other staff get 403.
 - **Signature files:** PNG or JPG up to 1MB, checked by content as well as
   type (pdfkit can't draw WebP, so it isn't accepted). Saved as soon as it's
@@ -1315,8 +1321,8 @@ receptionists and nurses from the Staff page.
 - Sessions are an httpOnly JWT cookie - never readable from JS, so an XSS
   payload can't exfiltrate it. `secure` is enabled automatically in
   production. `SameSite=Lax` locally and on the single-service Render
-  deploy (same origin); `SameSite=None` only in the Vercel + Render split,
-  where every API call is cross-site.
+  deploy (same origin); `SameSite=None` only in a split deploy (client and
+  API on different hosts), where every API call is cross-site.
 - When the server serves the React app (`SERVE_CLIENT`), the
   Content-Security-Policy allows scripts only from the app itself plus the
   one inline theme script by SHA-256 hash - no `'unsafe-inline'` - and
@@ -1594,19 +1600,21 @@ Carried over from Phase 10:
   removal, so a photo on grey paper prints grey.
 - A person can only belong to one clinic (email is globally unique, not
   per-clinic) - fine for the MVP, would need rework for a multi-clinic user.
-- `npm audit` (as of 2026-10-14, after `npm audit fix`): what ships to
-  production (`npm audit --omit=dev`) has **2 moderate** findings, both
-  `react-router`/`react-router-dom` (open-redirect advisories) - the fix is
-  React Router 7, a major upgrade deferred until the app's routing can be
-  regression-tested. Everything else left is in **development-only** tools
-  and needs major upgrades: Jest 30, Vitest 5, Vite 8, Tailwind 4 (the app
-  stays on Tailwind 3.4), and Puppeteer 25 (E2E only - its `extract-zip`
-  only ever unpacks Puppeteer's own pinned Chromium download). None of
-  those run on the live server. The earlier critical `proxy-addr`
-  (Express, IP spoofing via IPv4-mapped IPv6 addresses) and the `qs`,
-  `express`, `body-parser`, `morgan` and `shell-quote` advisories were
-  fixed by `npm audit fix` without breaking changes. Don't run
-  `npm audit fix --force`: it makes all of those major upgrades at once.
+- `npm audit` (as of 2026-11-26, after `npm audit fix`): what ships to
+  production (`npm audit --omit=dev`) has **3** findings - **2 moderate**
+  in `react-router`/`react-router-dom` (open-redirect advisories; the fix is
+  React Router 7) and **1 high** in `zod` (memory exhaustion on oversized
+  constrained collections; the fix is zod 4). Both are major upgrades,
+  deferred until they can be regression-tested. Everything else left is in
+  **development-only** tools and needs major upgrades: Vitest 5, Vite 8 and
+  Puppeteer 25 (E2E only). None of those run on the live server. Fixed
+  without breaking changes by `npm audit fix`: on 2026-11-26 `mongoose`
+  (8.24.11 - sanitizeFilter, discriminator-key and prototype-pollution
+  advisories), `qs`, `body-parser` and `follow-redirects`; on 2026-10-14
+  the critical `proxy-addr` (Express, IP spoofing via IPv4-mapped IPv6
+  addresses) and the `qs`, `express`, `body-parser`, `morgan` and
+  `shell-quote` advisories. Don't run `npm audit fix --force`: it makes all
+  of those major upgrades at once.
 - Every page behind the authenticated app shell is route-based
   code-split (`React.lazy` + `Suspense`, Phase 10) - Reports (the heaviest,
   via Recharts) now ships as its own ~420KB chunk that only admins loading

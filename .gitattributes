@@ -1,0 +1,11 @@
+# Keep LF line endings in the working tree on every OS. Git for Windows
+# defaults to core.autocrlf=true, which would check text files out as CRLF -
+# Prettier (endOfLine: lf) would then flag every file it touches, and diffs
+# would fill with line-ending noise.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary

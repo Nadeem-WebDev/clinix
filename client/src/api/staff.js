@@ -37,7 +37,7 @@ export async function removeDoctorSignature(id) {
 // The signature image itself, as a Blob, for the profile form's preview.
 // Fetched through apiClient rather than used as a plain <img src>: when the
 // app and the API are on different origins (the local two-server dev setup,
-// the Vercel + Render split) the browser refuses a cross-origin <img> of it,
+// a split deploy) the browser refuses a cross-origin <img> of it,
 // because Helmet sends Cross-Origin-Resource-Policy: same-origin. An API
 // request (CORS with credentials, already allowed) works on every setup.
 // `version` (the upload time) busts the browser cache after a change.

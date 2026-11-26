@@ -180,6 +180,14 @@ async function main() {
       PORT: String(API_PORT),
       MONGODB_URI: mongod.getUri(),
       CORS_ORIGIN: CLIENT_URL,
+      // The server also loads the root .env, which may switch real
+      // messaging/billing on; set first, these win (dotenv never
+      // overwrites). Cloudinary stays as configured - see
+      // cloudinaryConfigured() above.
+      EMAIL_ENABLED: 'false',
+      WHATSAPP_ENABLED: 'false',
+      BILLING_ENABLED: 'false',
+      KEEP_ALIVE_ENABLED: 'false',
     },
   })
   await waitForHttp(`${API_URL}/health`)

@@ -25,13 +25,13 @@ export const env = {
   // Render assigns this dynamically at runtime - never hardcode a port,
   // always defer to whatever the platform sets. The fallback is dev-only.
   port: Number(process.env.PORT) || 5000,
-  // Comma-separated list of allowed frontend origins (e.g. a Vercel
-  // production domain plus a custom domain) - the `cors` package accepts
+  // Comma-separated list of allowed frontend origins (e.g. the onrender.com
+  // address plus a custom domain) - the `cors` package accepts
   // an array of origins natively, so a single value behaves the same as a
   // plain string would.
   //
   // RENDER_EXTERNAL_URL is set by Render itself (e.g.
-  // https://clinix.onrender.com), so a single-service Render deploy - where
+  // https://clinix-jywo.onrender.com), so the single-service Render deploy - where
   // this server also serves the frontend - needs no CORS_ORIGIN at all.
   corsOrigins: (process.env.CORS_ORIGIN || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173')
     .split(',')
@@ -45,8 +45,8 @@ export const env = {
       : process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/clinic-crm-dev',
   // SERVE_CLIENT=true makes this server also serve the built React app
   // (client/dist) from the same origin - the single-service Render deploy
-  // in render.yaml. Off by default: in dev, Vite serves the client, and the
-  // Vercel + Render split deploys the client separately.
+  // (README "Production Deployment"). Off by default: in dev, Vite serves
+  // the client.
   serveClient: process.env.SERVE_CLIENT === 'true',
   clientDistDir: path.resolve(__dirname, '../../../client/dist'),
   jwt: {
